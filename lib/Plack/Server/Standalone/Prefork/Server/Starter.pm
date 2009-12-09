@@ -6,6 +6,8 @@ use warnings;
 use Server::Starter ();
 use base qw(Plack::Server::Standalone::Prefork);
 
+our $VERSION = '0.01';
+
 sub new {
     my ($klass, %args) = @_;
     
