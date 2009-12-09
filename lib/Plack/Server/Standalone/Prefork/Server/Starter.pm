@@ -37,7 +37,7 @@ Plack::Server::Standalone::Prefork::Server::Starter
 
 =head1 SYNOPSIS
 
-  % start_server --port=80 plackup -s Standalone::Prefork::Server::Starter
+  % start_server --port=80 -- plackup -s Standalone::Prefork::Server::Starter
 
 =head1 DESCRIPTION
 
