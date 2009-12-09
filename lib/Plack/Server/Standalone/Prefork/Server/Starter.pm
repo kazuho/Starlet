@@ -3,6 +3,7 @@ package Plack::Server::Standalone::Prefork::Server::Starter;
 use strict;
 use warnings;
 
+use Server::Starter ();
 use base qw(Plack::Server::Standalone::Prefork);
 
 sub new {
@@ -15,13 +16,16 @@ sub new {
     } else {
         $args{port} = $hostport;
     }
-    $args{listen_sock} = IO::Socket::INET->new(
+    
+    my $self = $klass->SUPER::new(%args);
+    
+    $self->{listen_sock} = IO::Socket::INET->new(
         Proto => 'tcp',
     ) or die "failed to create socket:$!";
-    $args{listen_sock}->fdopen($fd, 'w')
+    $self->{listen_sock}->fdopen($fd, 'w')
         or die "failed to bind to listening socket:$!";
     
-    $klass->SUPER::new(%args);
+    $self;
 }
 
 1;
