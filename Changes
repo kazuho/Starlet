@@ -1,0 +1,4 @@
+Revision history for Perl extension Plack::Server::Standalone::Prefork::Server::Starter
+
+0.02 Fri Jan  1 14:39:00 JST 2010
+	- require Parallel::Prefork (since Plack intentionally does not require P::Prefork required by Standalone::Prefork)
