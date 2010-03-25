@@ -2,6 +2,7 @@ use strict;
 use warnings;
 
 use File::Basename ();
+use List::Util qw(first);
 use LWP::Simple ();
 use Test::TCP ();
 
@@ -11,10 +12,16 @@ BEGIN {
     use_ok('Server::Starter');
 };
 
-my ($start_server) = grep { -x $_ } map { "$_/start_server" } (
-    File::Basename::dirname($^X),
-    split /:/, $ENV{PATH},
-);
+sub findprog {
+    my $prog = shift;
+    first { -x $_ } map { "$_/$prog" } (
+        File::Basename::dirname($^X),
+        split /:/, $ENV{PATH},
+    );
+}
+
+my $start_server = findprog('start_server');
+my $plackup = findprog('plackup');
 
 if ($start_server) {
     my $port = Test::TCP::empty_port();
@@ -26,7 +33,9 @@ if ($start_server) {
         exec(
             $start_server,
             "--port=$port",
-            qw(-- plackup -s Standalone::Prefork::Server::Starter t/00base-hello.psgi),
+            "--",
+            $plackup,
+            qw(--server Standalone::Prefork::Server::Starter t/00base-hello.psgi),
         );
         die "failed to launch server using start_server:$!";
     }

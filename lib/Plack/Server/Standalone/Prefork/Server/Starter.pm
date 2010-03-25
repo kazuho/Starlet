@@ -4,9 +4,9 @@ use strict;
 use warnings;
 
 use Server::Starter ();
-use base qw(Plack::Server::Standalone::Prefork);
+use base qw(HTTP::Server::PSGI);
 
-our $VERSION = '0.02';
+our $VERSION = '0.04';
 
 sub new {
     my ($klass, %args) = @_;
@@ -18,6 +18,8 @@ sub new {
     } else {
         $args{port} = $hostport;
     }
+    
+    $args{max_workers} ||= 10;
     
     my $self = $klass->SUPER::new(%args);
     
@@ -51,9 +53,13 @@ All parameters of L<Plack::Server::Standalone::Prefork> except "host" and "port"
 
 Kazuho Oku
 
+=head1 NOTES
+
+If you are looking for a standalone preforking HTTP server, then you should really look at L<Starman>.  However if your all want is a simple HTTP server that runs behind a reverse proxy, this good old module still does what it used to.
+
 =head1 SEE ALSO
 
-L<Plack::Server::Standalone::Prefork>
+L<Starman>
 L<Server::Starter>
 
 =head1 LICENSE
