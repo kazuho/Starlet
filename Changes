@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.07
+	- hardcode set $PSSPSS::VERSION
+
 0.06
 	- set $PSSPSS::VERSION to $Starlet::VERSION
 

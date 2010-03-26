@@ -6,6 +6,6 @@ use warnings;
 use Starlet;
 use base qw(Plack::Handler::Starlet);
 
-our $VERSION = $Starlet::VERSION;
+our $VERSION = '0.07';
 
 1;
