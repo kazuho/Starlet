@@ -5,7 +5,7 @@ use warnings;
 
 use Parallel::Prefork;
 use Server::Starter ();
-use base qw(HTTP::Server::PSGI);
+use base qw(Starlet::Server);
 
 sub new {
     my ($klass, %args) = @_;

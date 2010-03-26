@@ -21,7 +21,7 @@ Starlet
 
 =head1 DESCRIPTION
 
-Starlet is a standalone HTTP/1.0 server formerly known as L<Plack::Server::Standalone::Prefork::Server::Starter>, a wrapper of L<HTTP::Server::PSGI> using L<Server::Starter>.
+Starlet is a standalone HTTP/1.0 server formerly known as L<Plack::Server::Standalone::Prefork> and L<Plack::Server::Standalone::Prefork::Server::Starter>.
 
 The server supports following features, and is suitable for running HTTP application servers behind a reverse proxy.
 
@@ -33,9 +33,27 @@ The server supports following features, and is suitable for running HTTP applica
 
 =head1 COMMAND LINE OPTIONS
 
-In addition to the options supported by L<HTTP::Server::PSGI>, Starlet accepts following options(s).
+In addition to the options supported by L<plackup>, Starlet accepts following options(s).
 
---num-workers=#  number of worker processes (default: 10)
+=head2 --num-workers=#
+
+number of worker processes (default: 10)
+
+=head2 --timeout=#
+
+seconds until timeout (default: 300)
+
+=head2 --keepalive-timeout=#
+
+timeout for persistent connections (default: 2)
+
+=head2 --max-keepalive-reqs=#
+
+max. number of requests allowed per single persistent connection.  If set to one, persistent connections are disabled (default: 1)
+
+=head2 --max-reqs-per-child=#
+
+max. number of requests to be handled before a worker process exits (default: 100)
 
 =head1 NOTES
 
@@ -50,8 +68,6 @@ L<Server::Starter>
 =head1 AUTHOR
 
 Kazuho Oku
-
-=head1 THANKS TO
 
 miyagawa
 
