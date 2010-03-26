@@ -1,0 +1,39 @@
+NAME
+    Starlet
+
+SYNOPSIS
+      % start_server --port=80 -- plackup -s Starlet [options] your-app.psgi
+
+  OPTIONS
+    --num-workers=# number of worker processes
+
+DESCRIPTION
+    Starlet is a standalone HTTP/1.0 server formerly known as
+    Plack::Server::Standalone::Prefork::Server::Starter, a wrapper of
+    HTTP::Server::PSGI using Server::Starter.
+
+    The server supports following features, and is suitable for running HTTP
+    application servers behind a reverse proxy.
+
+    - prefork and graceful shutdown using Parallel::Prefork - hot deploy
+    using Server::Starter - fast HTTP processing using HTTP::Parser::XS
+    (optional)
+
+AUTHOR
+    Kazuho Oku
+
+NOTES
+    If you are looking for a standalone preforking HTTP server, then you
+    should really look at Starman. However if your all want is a simple HTTP
+    server that runs behind a reverse proxy, this good old module still does
+    what it used to.
+
+SEE ALSO
+    Starman Server::Starter
+
+LICENSE
+    This program is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
+    See <http://www.perl.com/perl/misc/Artistic.html>
+

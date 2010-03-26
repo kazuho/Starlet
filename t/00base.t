@@ -23,7 +23,8 @@ sub findprog {
 my $start_server = findprog('start_server');
 my $plackup = findprog('plackup');
 
-if ($start_server) {
+sub doit {
+    my $pkg = shift;
     my $port = Test::TCP::empty_port();
     my $server_pid = fork();
     die "fork failed:$!"
@@ -33,9 +34,11 @@ if ($start_server) {
         exec(
             $start_server,
             "--port=$port",
-            "--",
+            '--',
             $plackup,
-            qw(--server Standalone::Prefork::Server::Starter t/00base-hello.psgi),
+            '--server',
+            $pkg,
+            't/00base-hello.psgi',
         );
         die "failed to launch server using start_server:$!";
     }
@@ -45,6 +48,11 @@ if ($start_server) {
     
     kill 'TERM', $server_pid;
     while (wait == -1) {}
+}
+
+if ($start_server) {
+    doit('Starlet');
+    doit('Standalone::Prefork::Server::Starter');
 } else {
     warn "could not find `start_server' next to $^X nor from \$PATH, skipping tests";
 }

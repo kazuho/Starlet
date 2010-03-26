@@ -1,7 +1,7 @@
 use inc::Module::Install;
 
-all_from 'lib/Plack/Server/Standalone/Prefork/Server/Starter.pm';
-readme_from 'lib/Plack/Server/Standalone/Prefork/Server/Starter.pm';
+all_from 'lib/Starlet.pm';
+readme_from 'lib/Starlet.pm';
 
 requires 'Plack' => 0.9920;
 requires 'Parallel::Prefork' => 0.07;
