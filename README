@@ -26,7 +26,7 @@ COMMAND LINE OPTIONS
     In addition to the options supported by HTTP::Server::PSGI, Starlet
     accepts following options(s).
 
-    --num-workers=# number of worker processes
+    --num-workers=# number of worker processes (default: 10)
 
 NOTES
     If you are looking for a standalone preforking HTTP server, then you

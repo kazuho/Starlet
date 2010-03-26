@@ -1,5 +1,7 @@
 package Starlet;
 
+use 5.008_001;
+
 our $VERSION = '0.05';
 
 1;
@@ -33,7 +35,7 @@ The server supports following features, and is suitable for running HTTP applica
 
 In addition to the options supported by L<HTTP::Server::PSGI>, Starlet accepts following options(s).
 
---num-workers=#  number of worker processes
+--num-workers=#  number of worker processes (default: 10)
 
 =head1 NOTES
 
