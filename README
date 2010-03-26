@@ -29,7 +29,7 @@ NOTES
     what it used to.
 
 SEE ALSO
-    Starman Server::Starter
+    Parallel::Prefork Starman Server::Starter
 
 LICENSE
     This program is free software; you can redistribute it and/or modify it
