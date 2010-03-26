@@ -1,4 +1,8 @@
-Revision history for Perl extension Plack::Server::Standalone::Prefork::Server::Starter
+Revision history for Perl extension Starlet
+
+0.05
+	- rename to Starlet from Plack::Server::Standalone::Prefork::Server::Starter (is backwards compatible)
+	- no more depends on HTTP::Server::PSGI
 
 0.04
 	- follow the changes up to Plack 0.9920
