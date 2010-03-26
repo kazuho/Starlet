@@ -10,6 +10,7 @@ use base qw(HTTP::Server::PSGI);
 sub new {
     my ($klass, %args) = @_;
     
+    # setup before instantiation
     my $listen_sock;
     if (defined $ENV{SERVER_STARTER_PORT}) {
         my ($hostport, $fd) = %{Server::Starter::server_ports()};
@@ -25,13 +26,14 @@ sub new {
         $listen_sock->fdopen($fd, 'w')
             or die "failed to bind to listening socket:$!";
     }
+    my $max_workers = delete($args{max_workers}) || 10;
     
+    # instantiate and set the variables
     my $self = $klass->SUPER::new(%args);
     $self->{is_multiprocess} = 1;
-    $self->{max_workers} = $args{max_workers} || 10;
-    
     $self->{listen_sock} = $listen_sock
         if $listen_sock;
+    $self->{max_workers} = $max_workers;
     
     $self;
 }

@@ -4,8 +4,9 @@ NAME
 SYNOPSIS
       % start_server --port=80 -- plackup -s Starlet [options] your-app.psgi
 
-  OPTIONS
-    --num-workers=# number of worker processes
+      or if you do not need hot deploy,
+
+      % plackup -s Starlet --port=80 [options] your-app.psgi
 
 DESCRIPTION
     Starlet is a standalone HTTP/1.0 server formerly known as
@@ -15,12 +16,17 @@ DESCRIPTION
     The server supports following features, and is suitable for running HTTP
     application servers behind a reverse proxy.
 
-    - prefork and graceful shutdown using Parallel::Prefork - hot deploy
-    using Server::Starter - fast HTTP processing using HTTP::Parser::XS
-    (optional)
+    - prefork and graceful shutdown using Parallel::Prefork
 
-AUTHOR
-    Kazuho Oku
+    - hot deploy using Server::Starter
+
+    - fast HTTP processing using HTTP::Parser::XS (optional)
+
+COMMAND LINE OPTIONS
+    In addition to the options supported by HTTP::Server::PSGI, Starlet
+    accepts following options(s).
+
+    --num-workers=# number of worker processes
 
 NOTES
     If you are looking for a standalone preforking HTTP server, then you
@@ -30,6 +36,12 @@ NOTES
 
 SEE ALSO
     Parallel::Prefork Starman Server::Starter
+
+AUTHOR
+    Kazuho Oku
+
+THANKS TO
+    miyagawa
 
 LICENSE
     This program is free software; you can redistribute it and/or modify it
