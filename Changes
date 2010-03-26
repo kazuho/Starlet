@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.06
+	- set $PSSPSS::VERSION to $Starlet::VERSION
+
 0.05
 	- rename to Starlet from Plack::Server::Standalone::Prefork::Server::Starter (is backwards compatible)
 	- no more depends on HTTP::Server::PSGI
