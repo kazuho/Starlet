@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.08
+	- [bugfix] delay termination (when receiving first SIGTERM or SIGINT) until all HTTP requests are being processed
+
 0.07
 	- hardcode set $PSSPSS::VERSION
 
