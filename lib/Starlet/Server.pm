@@ -125,15 +125,25 @@ sub accept_loop {
 
 sub handle_connection {
     my($self, $env, $conn, $app, $use_keepalive, $is_keepalive) = @_;
-
+    
     my $buf = '';
     my $res = [ 400, [ 'Content-Type' => 'text/plain' ], [ 'Bad Request' ] ];
-
+    
+    my $can_exit = 1;
+    my $term_received = 0;
+    local $SIG{TERM} = sub {
+        $term_received++;
+        exit 0
+            if ($is_keepalive && $can_exit) || $term_received > 1;
+        # warn "server termination delayed while handling current HTTP request";
+    };
+    
     while (1) {
         my $rlen = $self->read_timeout(
             $conn, \$buf, MAX_REQUEST_SIZE - length($buf), length($buf),
             $is_keepalive ? $self->{keepalive_timeout} : $self->{timeout},
         ) or return;
+        undef $can_exit;
         my $reqlen = parse_http_request($buf, $env);
         if ($reqlen >= 0) {
             # handle request
@@ -186,6 +196,10 @@ sub handle_connection {
         die "Bad response $res";
     }
 
+    if ($term_received) {
+        exit 0;
+    }
+    
     return $use_keepalive;
 }
 

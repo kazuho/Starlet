@@ -45,7 +45,7 @@ sub run {
         max_workers => $self->{max_workers},
         trap_signals => {
             TERM => 'TERM',
-            HUP => 'TERM',
+            HUP  => 'TERM',
         },
     });
     while ($pm->signal_received ne 'TERM') {
