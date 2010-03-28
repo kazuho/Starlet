@@ -26,7 +26,7 @@ COMMAND LINE OPTIONS
     In addition to the options supported by plackup, Starlet accepts
     following options(s).
 
-  --num-workers=#
+  --max-workers=#
     number of worker processes (default: 10)
 
   --timeout=#
