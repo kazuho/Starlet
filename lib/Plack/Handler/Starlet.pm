@@ -26,7 +26,8 @@ sub new {
         $listen_sock->fdopen($fd, 'w')
             or die "failed to bind to listening socket:$!";
     }
-    my $max_workers = delete($args{max_workers}) || 10;
+    my $max_workers = delete($args{max_workers}) || delete($args{workers})
+        || 10;
     
     # instantiate and set the variables
     my $self = $klass->SUPER::new(%args);
