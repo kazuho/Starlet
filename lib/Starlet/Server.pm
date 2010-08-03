@@ -12,7 +12,7 @@ use List::Util qw(max sum);
 use Plack::Util;
 use Plack::TempBuffer;
 use Plack::Middleware::ContentLength;
-use POSIX qw(EINTR);
+use POSIX qw(EINTR EAGAIN EWOULDBLOCK);
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 
 use Try::Tiny;
@@ -263,39 +263,57 @@ sub _handle_response {
     }
 }
 
-# returns 1 if socket is ready, undef on timeout
-sub do_timeout {
-    my ($self, $cb, $timeout) = @_;
-    local $SIG{ALRM} = sub {};
-    my $wait_until = time + $timeout;
-    alarm($timeout);
-    my $ret;
-    while (1) {
-        if ($ret = $cb->()) {
-            last;
-        } elsif (! (! defined($ret) && $! == EINTR)) {
-            undef $ret;
-            last;
+# returns value returned by $cb, or undef on timeout or network error
+sub do_select {
+    my ($self, $cb, $rin, $win, $ein, $timeout) = @_;
+    my ($nfound, $ret);
+    while ($timeout > 0) {
+        my ($rout, $wout, $eout);
+        my $start_at = time;
+        $nfound = select(
+            $rout = $rin, $wout = $win, $eout = $ein, $timeout,
+        );
+        if ($nfound) {
+            if ($ret = $cb->()) {
+                last;
+            } elsif (
+                ! (! defined($ret)
+                       && ($! == EINTR || $! == EAGAIN || $! == EWOULDBLOCK))) {
+                undef $ret;
+                last;
+            }
         }
-        # got EINTR
-        my $left = $wait_until - time;
-        last if $left <= 0;
-        alarm($left + $alarm_interval);
+        $timeout -= (time - $start_at);
     }
-    alarm(0);
     $ret;
 }
 
 # returns (positive) number of bytes read, or undef if the socket is to be closed
 sub read_timeout {
     my ($self, $sock, $buf, $len, $off, $timeout) = @_;
-    $self->do_timeout(sub { $sock->sysread($$buf, $len, $off) }, $timeout);
+    my $rin = '';
+    vec($rin, fileno($sock), 1) = 1;
+    return $self->do_select(
+        sub { $sock->sysread($$buf, $len, $off) },
+        $rin,
+        '',
+        $rin,
+        $timeout,
+    );
 }
 
 # returns (positive) number of bytes written, or undef if the socket is to be closed
 sub write_timeout {
     my ($self, $sock, $buf, $len, $off, $timeout) = @_;
-    $self->do_timeout(sub { $sock->syswrite($buf, $len, $off) }, $timeout);
+    my $win = '';
+    vec($win, fileno($sock), 1) = 1;
+    $self->do_select(
+        sub { $sock->syswrite($buf, $len, $off) },
+        '',
+        $win,
+        $win,
+        $timeout,
+    );
 }
 
 # writes all data in buf and returns number of bytes written or undef if failed
