@@ -1,5 +1,9 @@
 Revision history for Perl extension Starlet
 
+0.09
+	- [bugfix] enable keepalive when --max-keepalive-reqs=n (n>1) is set
+	- accept --max-workers=n option (for better interoperability w. Starman)
+
 0.08
 	- [bugfix] delay termination (when receiving first SIGTERM or SIGINT) until all HTTP requests are being processed
 
