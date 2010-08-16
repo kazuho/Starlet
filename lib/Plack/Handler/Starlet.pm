@@ -26,8 +26,11 @@ sub new {
         $listen_sock->fdopen($fd, 'w')
             or die "failed to bind to listening socket:$!";
     }
-    my $max_workers = delete($args{max_workers}) || delete($args{workers})
-        || 10;
+    my $max_workers = 10;
+    for (qw(max_workers workers)) {
+        $max_workers = delete $args{$_}
+            if defined $args{$_};
+    }
     
     # instantiate and set the variables
     my $self = $klass->SUPER::new(%args);
@@ -42,19 +45,26 @@ sub new {
 sub run {
     my($self, $app) = @_;
     $self->setup_listener();
-    my $pm = Parallel::Prefork->new({
-        max_workers => $self->{max_workers},
-        trap_signals => {
-            TERM => 'TERM',
-            HUP  => 'TERM',
-        },
-    });
-    while ($pm->signal_received ne 'TERM') {
-        $pm->start and next;
+    if ($self->{max_workers} != 0) {
+        # use Parallel::Prefork
+        my $pm = Parallel::Prefork->new({
+            max_workers => $self->{max_workers},
+            trap_signals => {
+                TERM => 'TERM',
+                HUP  => 'TERM',
+            },
+        });
+        while ($pm->signal_received ne 'TERM') {
+            $pm->start and next;
+            $self->accept_loop($app, $self->{max_reqs_per_child});
+            $pm->finish;
+        }
+        $pm->wait_all_children;
+    } else {
+        # run directly, mainly for debugging
+        local $SIG{TERM} = sub { exit 0; };
         $self->accept_loop($app, $self->{max_reqs_per_child});
-        $pm->finish;
     }
-    $pm->wait_all_children;
 }
 
 1;
