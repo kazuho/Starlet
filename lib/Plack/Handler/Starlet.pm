@@ -63,7 +63,9 @@ sub run {
     } else {
         # run directly, mainly for debugging
         local $SIG{TERM} = sub { exit 0; };
-        $self->accept_loop($app, $self->{max_reqs_per_child});
+        while (1) {
+            $self->accept_loop($app, $self->{max_reqs_per_child});
+        }
     }
 }
 
