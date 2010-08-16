@@ -11,22 +11,11 @@ use HTTP::Status;
 use List::Util qw(max sum);
 use Plack::Util;
 use Plack::TempBuffer;
-use Plack::Middleware::ContentLength;
-use POSIX qw(EINTR);
+use POSIX qw(EINTR EAGAIN EWOULDBLOCK);
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 
 use Try::Tiny;
 use Time::HiRes qw(time);
-
-my $alarm_interval;
-BEGIN {
-    if ($^O eq 'MSWin32') {
-        $alarm_interval = 1;
-    } else {
-        Time::HiRes->import('alarm');
-        $alarm_interval = 0.1;
-    }
-}
 
 use constant MAX_REQUEST_SIZE => 131072;
 use constant MSWin32          => $^O eq 'MSWin32';
@@ -35,16 +24,17 @@ sub new {
     my($class, %args) = @_;
 
     my $self = bless {
-        host               => $args{host} || 0,
-        port               => $args{port} || 8080,
-        timeout            => $args{timeout} || 300,
-        keepalive_timeout  => $args{keepalive_timeout} || 2,
-        max_keepalive_reqs => $args{max_keepalive_reqs} || 1,
-        server_software    => $args{server_software} || $class,
-        server_ready       => $args{server_ready} || sub {},
-        max_reqs_per_child =>
+        host                => $args{host} || 0,
+        port                => $args{port} || 8080,
+        timeout             => $args{timeout} || 300,
+        keepalive_timeout   => $args{keepalive_timeout} || 2,
+        max_keepalive_reqs  => $args{max_keepalive_reqs} || 1,
+        server_software     => $args{server_software} || $class,
+        server_ready        => $args{server_ready} || sub {},
+        max_reqs_per_child  =>
             $args{max_reqs_per_child} || $args{max_requests} || 100,
-        is_multiprocess    => Plack::Util::FALSE,
+        is_multiprocess     => Plack::Util::FALSE,
+        _using_defer_accept => undef,
     }, $class;
 
     if ($args{max_workers} && $args{max_workers} > 1) {
@@ -73,6 +63,12 @@ sub setup_listener {
         ReuseAddr => 1,
     ) or die "failed to listen to port $self->{port}:$!";
 
+    # set defer accept
+    if ($^O eq 'linux') {
+        setsockopt($self->{listen_sock}, IPPROTO_TCP, 9, 1)
+            and $self->{_using_defer_accept} = 1;
+    }
+
     $self->{server_ready}->($self);
 }
 
@@ -81,11 +77,12 @@ sub accept_loop {
     my($self, $app, $max_reqs_per_child) = @_;
     my $proc_req_count = 0;
 
-    $app = Plack::Middleware::ContentLength->wrap($app);
-
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
         local $SIG{PIPE} = 'IGNORE';
         if (my $conn = $self->{listen_sock}->accept) {
+            $self->{_is_deferred_accept} = $self->{_using_defer_accept};
+            $conn->blocking(0)
+                or die "failed to set socket to nonblocking mode:$!";
             $conn->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
                 or die "setsockopt(TCP_NODELAY) failed:$!";
             my $req_count = 0;
@@ -205,57 +202,67 @@ sub handle_connection {
 
 sub _handle_response {
     my($self, $res, $conn, $use_keepalive_r) = @_;
-
+    my $status_code = $res->[0];
+    my $headers = $res->[1];
+    my $body = $res->[2];
+    
     my @lines = (
         "Date: @{[HTTP::Date::time2str()]}\015\012",
         "Server: $self->{server_software}\015\012",
     );
-
-    Plack::Util::header_iter($res->[1], sub {
-        my ($k, $v) = @_;
-        if (lc $k eq 'connection') {
+    
+    my %send_headers;
+    for (my $i = 0; $i < @$headers; $i += 2) {
+        my $k = $headers->[$i];
+        my $v = $headers->[$i + 1];
+        my $lck = lc $k;
+        if ($lck eq 'connection') {
             $$use_keepalive_r = undef
                 if $$use_keepalive_r && lc $v ne 'keep-alive';
         } else {
             push @lines, "$k: $v\015\012";
+            $send_headers{$lck} = $v;
         }
-    });
-    if ($$use_keepalive_r) {
-        $$use_keepalive_r = undef
-            unless Plack::Util::header_exists($res->[1], 'Content-Length');
     }
-    push @lines, "Connection: keep-alive\015\012"
-        if $$use_keepalive_r;
-    unshift @lines, "HTTP/1.0 $res->[0] @{[ HTTP::Status::status_message($res->[0]) ]}\015\012";
+    # try to set content-length when keepalive can be used, or disable it
+    if ($$use_keepalive_r) {
+        if (defined $send_headers{'content-length'}
+                || defined $send_headers{'transfer-encoding'}) {
+            # ok
+        } elsif (! Plack::Util::status_with_no_entity_body($status_code)
+                    && defined(my $cl = Plack::Util::content_length($body))) {
+            push @lines, "Content-Length: $cl\015\012";
+        } else {
+            $$use_keepalive_r = undef
+        }
+        push @lines, "Connection: keep-alive\015\012"
+            if $$use_keepalive_r;
+    }
+    unshift @lines, "HTTP/1.0 $status_code @{[ HTTP::Status::status_message($status_code) ]}\015\012";
     push @lines, "\015\012";
-
+    
+    if (defined $body && ref $body eq 'ARRAY' && @$body == 1
+            && length $body->[0] < 1024) {
+        # combine response header and small request body
+        $self->write_all(
+            $conn, join('', @lines, $body->[0]), $self->{timeout},
+        );
+        return;
+    }
     $self->write_all($conn, join('', @lines), $self->{timeout})
         or return;
 
-    if (defined $res->[2]) {
-        my $err;
-        my $done;
-        {
-            local $@;
-            eval {
-                Plack::Util::foreach(
-                    $res->[2],
-                    sub {
-                        $self->write_all($conn, $_[0], $self->{timeout})
-                            or die "failed to send all data\n";
-                    },
-                );
-                $done = 1;
-            };
-            $err = $@;
-        };
-        unless ($done) {
-            if ($err =~ /^failed to send all data\n/) {
-                return;
-            } else {
-                die $err;
-            }
-        }
+    if (defined $body) {
+        my $failed;
+        Plack::Util::foreach(
+            $body,
+            sub {
+                unless ($failed) {
+                    $self->write_all($conn, $_[0], $self->{timeout})
+                        or $failed = 1;
+                }
+            },
+        );
     } else {
         return Plack::Util::inline_object
             write => sub { $self->write_all($conn, $_[0], $self->{timeout}) },
@@ -263,39 +270,56 @@ sub _handle_response {
     }
 }
 
-# returns 1 if socket is ready, undef on timeout
-sub do_timeout {
-    my ($self, $cb, $timeout) = @_;
-    local $SIG{ALRM} = sub {};
-    my $wait_until = time + $timeout;
-    alarm($timeout);
+# returns value returned by $cb, or undef on timeout or network error
+sub do_io {
+    my ($self, $is_write, $sock, $buf, $len, $off, $timeout) = @_;
     my $ret;
-    while (1) {
-        if ($ret = $cb->()) {
-            last;
-        } elsif (! (! defined($ret) && $! == EINTR)) {
-            undef $ret;
-            last;
-        }
-        # got EINTR
-        my $left = $wait_until - time;
-        last if $left <= 0;
-        alarm($left + $alarm_interval);
+    unless ($is_write || delete $self->{_is_deferred_accept}) {
+        goto DO_SELECT;
     }
-    alarm(0);
-    $ret;
+    while (1) {
+        # try to do the IO
+        if ($is_write) {
+            $ret = syswrite $sock, $buf, $len, $off
+                and return $ret;
+        } else {
+            $ret = sysread $sock, $$buf, $len, $off
+                and return $ret;
+        }
+        unless ((! defined($ret)
+                     && ($! == EINTR || $! == EAGAIN || $! == EWOULDBLOCK))) {
+            return;
+        }
+        # wait for data
+    DO_SELECT:
+        while (1) {
+            my ($rfd, $wfd);
+            my $efd = '';
+            vec($efd, fileno($sock), 1) = 1;
+            if ($is_write) {
+                ($rfd, $wfd) = ('', $efd);
+            } else {
+                ($rfd, $wfd) = ($efd, '');
+            }
+            my $start_at = time;
+            my $nfound = select($rfd, $wfd, $efd, $timeout);
+            $timeout -= (time - $start_at);
+            last if $nfound;
+            return if $timeout <= 0;
+        }
+    }
 }
 
 # returns (positive) number of bytes read, or undef if the socket is to be closed
 sub read_timeout {
     my ($self, $sock, $buf, $len, $off, $timeout) = @_;
-    $self->do_timeout(sub { $sock->sysread($$buf, $len, $off) }, $timeout);
+    $self->do_io(undef, $sock, $buf, $len, $off, $timeout);
 }
 
 # returns (positive) number of bytes written, or undef if the socket is to be closed
 sub write_timeout {
     my ($self, $sock, $buf, $len, $off, $timeout) = @_;
-    $self->do_timeout(sub { $sock->syswrite($buf, $len, $off) }, $timeout);
+    $self->do_io(1, $sock, $buf, $len, $off, $timeout);
 }
 
 # writes all data in buf and returns number of bytes written or undef if failed
