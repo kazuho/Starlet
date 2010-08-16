@@ -20,6 +20,8 @@ use Time::HiRes qw(time);
 use constant MAX_REQUEST_SIZE => 131072;
 use constant MSWin32          => $^O eq 'MSWin32';
 
+my $null_io = do { open my $io, "<", \""; $io };
+
 sub new {
     my($class, %args) = @_;
 
@@ -168,8 +170,7 @@ sub handle_connection {
                 }
                 $env->{'psgi.input'} = $buffer->rewind;
             } else {
-                open my $input, "<", \$buf;
-                $env->{'psgi.input'} = $input;
+                $env->{'psgi.input'} = $null_io;
             }
 
             $res = Plack::Util::run_app $app, $env;
