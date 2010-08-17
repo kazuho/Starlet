@@ -278,37 +278,37 @@ sub do_io {
     unless ($is_write || delete $self->{_is_deferred_accept}) {
         goto DO_SELECT;
     }
-    while (1) {
-        # try to do the IO
-        if ($is_write) {
-            $ret = syswrite $sock, $buf, $len, $off
-                and return $ret;
-        } else {
-            $ret = sysread $sock, $$buf, $len, $off
-                and return $ret;
-        }
-        unless ((! defined($ret)
-                     && ($! == EINTR || $! == EAGAIN || $! == EWOULDBLOCK))) {
-            return;
-        }
-        # wait for data
-    DO_SELECT:
-        while (1) {
-            my ($rfd, $wfd);
-            my $efd = '';
-            vec($efd, fileno($sock), 1) = 1;
-            if ($is_write) {
-                ($rfd, $wfd) = ('', $efd);
-            } else {
-                ($rfd, $wfd) = ($efd, '');
-            }
-            my $start_at = time;
-            my $nfound = select($rfd, $wfd, $efd, $timeout);
-            $timeout -= (time - $start_at);
-            last if $nfound;
-            return if $timeout <= 0;
-        }
+ DO_READWRITE:
+    # try to do the IO
+    if ($is_write) {
+        $ret = syswrite $sock, $buf, $len, $off
+            and return $ret;
+    } else {
+        $ret = sysread $sock, $$buf, $len, $off
+            and return $ret;
     }
+    unless ((! defined($ret)
+                 && ($! == EINTR || $! == EAGAIN || $! == EWOULDBLOCK))) {
+        return;
+    }
+    # wait for data
+ DO_SELECT:
+    while (1) {
+        my ($rfd, $wfd);
+        my $efd = '';
+        vec($efd, fileno($sock), 1) = 1;
+        if ($is_write) {
+            ($rfd, $wfd) = ('', $efd);
+        } else {
+            ($rfd, $wfd) = ($efd, '');
+        }
+        my $start_at = time;
+        my $nfound = select($rfd, $wfd, $efd, $timeout);
+        $timeout -= (time - $start_at);
+        last if $nfound;
+        return if $timeout <= 0;
+    }
+    goto DO_READWRITE;
 }
 
 # returns (positive) number of bytes read, or undef if the socket is to be closed
