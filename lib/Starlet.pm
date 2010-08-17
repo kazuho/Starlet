@@ -2,14 +2,14 @@ package Starlet;
 
 use 5.008_001;
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 1;
 __END__
 
 =head1 NAME
 
-Starlet
+Starlet - a simple, high-performance PSGI/Plack HTTP server
 
 =head1 SYNOPSIS
 

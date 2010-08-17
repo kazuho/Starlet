@@ -1,5 +1,10 @@
 Revision history for Perl extension Starlet
 
+0.10
+	- switch from alarm-based polling to select-based
+	- use TCP_DEFER_ACCEPT on linux
+	- performance tweaks
+
 0.09
 	- [bugfix] enable keepalive when --max-keepalive-reqs=n (n>1) is set
 	- accept --max-workers=n option (for better interoperability w. Starman)

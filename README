@@ -1,5 +1,5 @@
 NAME
-    Starlet
+    Starlet - a simple, high-performance PSGI/Plack HTTP server
 
 SYNOPSIS
       % start_server --port=80 -- plackup -s Starlet [options] your-app.psgi
