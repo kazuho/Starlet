@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.11
+	- suppress the warning "Use of "goto" to jump into a construct is deprecated"
+
 0.10
 	- switch from alarm-based polling to select-based
 	- use TCP_DEFER_ACCEPT on linux
