@@ -21,7 +21,7 @@ Starlet - a simple, high-performance PSGI/Plack HTTP server
 
 =head1 DESCRIPTION
 
-Starlet is a standalone HTTP/1.0 server formerly known as L<Plack::Server::Standalone::Prefork> and L<Plack::Server::Standalone::Prefork::Server::Starter>.
+Starlet is a standalone HTTP/1.0 server with keep-alive support, formerly known as L<Plack::Server::Standalone::Prefork> and L<Plack::Server::Standalone::Prefork::Server::Starter>.
 
 The server supports following features, and is suitable for running HTTP application servers behind a reverse proxy.
 
@@ -57,7 +57,9 @@ max. number of requests to be handled before a worker process exits (default: 10
 
 =head1 NOTES
 
-If you are looking for a standalone preforking HTTP server, then you should really look at L<Starman>.  However if your all want is a simple HTTP server that runs behind a reverse proxy, this good old module still does what it used to.
+L<Starlet> is designed and implemented to be simple, secure and fast, especially for running as a HTTP application server running behind a reverse proxy.  It only depends on a minimal number of well-designed (and well-focused) modules.
+
+On the other hand if you are looking for a standalone preforking HTTP server that receives HTTP requests directly from the Internet, then you should look at L<Starman>.
 
 =head1 SEE ALSO
 
