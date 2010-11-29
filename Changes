@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.12
+	- [bugfix] fix infinite loop when connection is closed while receiving response content (thanks to Jiro Nishiguchi-san)
+
 0.11
 	- suppress the warning "Use of "goto" to jump into a construct is deprecated"
 
