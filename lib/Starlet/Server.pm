@@ -163,7 +163,9 @@ sub handle_connection {
                         $chunk = $buf;
                         $buf = '';
                     } else {
-                        $self->read_timeout($conn, \$chunk, $cl, 0, $self->{timeout});
+                        $self->read_timeout(
+                            $conn, \$chunk, $cl, 0, $self->{timeout})
+                            or return;
                     }
                     $buffer->print($chunk);
                     $cl -= length $chunk;
