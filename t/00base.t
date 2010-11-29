@@ -3,7 +3,7 @@ use warnings;
 
 use File::Basename ();
 use List::Util qw(first);
-use LWP::Simple ();
+use LWP::UserAgent ();
 use Test::TCP ();
 
 use Test::More;
@@ -44,7 +44,10 @@ sub doit {
     }
     sleep 1;
     
-    is(LWP::Simple::get("http://127.0.0.1:$port/"), 'hello');
+    my $ua = LWP::UserAgent->new;
+    my $response = $ua->get("http://127.0.0.1:$port/");
+    ok($response->is_success, "request successfull");
+    is($response->content, 'hello', 'content is hello');
     
     kill 'TERM', $server_pid;
     while (wait == -1) {}
