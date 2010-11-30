@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.13
+	- test compatibilty improvement: ignore proxy setting while running tests (datamuc)
+
 0.12
 	- [bugfix] fix infinite loop when connection is closed while receiving response content (thanks to Jiro Nishiguchi-san)
 
