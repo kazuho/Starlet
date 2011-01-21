@@ -47,13 +47,21 @@ sub run {
     $self->setup_listener();
     if ($self->{max_workers} != 0) {
         # use Parallel::Prefork
-        my $pm = Parallel::Prefork->new({
+        my %pm_args = (
             max_workers => $self->{max_workers},
             trap_signals => {
                 TERM => 'TERM',
                 HUP  => 'TERM',
             },
-        });
+        );
+        if (defined $self->{spawn_interval}) {
+            $pm_args{trap_signals}{HUP} = [ 'TERM', $self->{spawn_interval} ];
+            $pm_args{spawn_interval} = $self->{spawn_interval};
+        }
+        if (defined $self->{err_respawn_interval}) {
+            $pm_args{err_respawn_interval} = $self->{err_respawn_interval};
+        }
+        my $pm = Parallel::Prefork->new(\%pm_args);
         while ($pm->signal_received ne 'TERM') {
             $pm->start and next;
             $self->accept_loop($app, $self->_calc_reqs_per_child());
