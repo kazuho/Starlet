@@ -40,9 +40,7 @@ sub new {
         max_reqs_per_child   => (
             $args{max_reqs_per_child} || $args{max_requests} || 100,
         ),
-        spawn_interval       => (
-            defined $args{spawn_interval} ? $args{spawn_interval} : undef,
-        ),
+        spawn_interval       => $args{spawn_interval} || 0,
         err_respawn_interval => (
             defined $args{err_respawn_interval}
                 ? $args{err_respawn_interval} : undef,

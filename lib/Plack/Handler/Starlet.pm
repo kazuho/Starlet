@@ -55,7 +55,7 @@ sub run {
             },
         );
         if (defined $self->{spawn_interval}) {
-            $pm_args{trap_signals}{HUP} = [ 'TERM', $self->{spawn_interval} ];
+            $pm_args{trap_signals}{USR1} = [ 'TERM', $self->{spawn_interval} ];
             $pm_args{spawn_interval} = $self->{spawn_interval};
         }
         if (defined $self->{err_respawn_interval}) {
