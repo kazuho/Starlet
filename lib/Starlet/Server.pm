@@ -33,6 +33,9 @@ sub new {
         max_keepalive_reqs  => $args{max_keepalive_reqs} || 1,
         server_software     => $args{server_software} || $class,
         server_ready        => $args{server_ready} || sub {},
+        min_reqs_per_child  =>
+            defined $args{min_reqs_per_child}
+                ? $args{min_reqs_per_child} : undef,
         max_reqs_per_child  =>
             $args{max_reqs_per_child} || $args{max_requests} || 100,
         is_multiprocess     => Plack::Util::FALSE,

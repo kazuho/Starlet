@@ -55,6 +55,10 @@ max. number of requests allowed per single persistent connection.  If set to one
 
 max. number of requests to be handled before a worker process exits (default: 100)
 
+=head2 --min-reqs-per-child=#
+
+if set, randomizes the number of requests handled by a single worker process between the value and that supplied by C<--max-reqs-per-chlid> (default: none)
+
 =head1 NOTES
 
 L<Starlet> is designed and implemented to be simple, secure and fast, especially for running as a HTTP application server running behind a reverse proxy.  It only depends on a minimal number of well-designed (and well-focused) modules.

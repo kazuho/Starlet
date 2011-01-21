@@ -56,7 +56,7 @@ sub run {
         });
         while ($pm->signal_received ne 'TERM') {
             $pm->start and next;
-            $self->accept_loop($app, $self->{max_reqs_per_child});
+            $self->accept_loop($app, $self->_calc_reqs_per_child());
             $pm->finish;
         }
         $pm->wait_all_children;
@@ -64,8 +64,19 @@ sub run {
         # run directly, mainly for debugging
         local $SIG{TERM} = sub { exit 0; };
         while (1) {
-            $self->accept_loop($app, $self->{max_reqs_per_child});
+            $self->accept_loop($app, $self->_calc_reqs_per_child());
         }
+    }
+}
+
+sub _calc_reqs_per_child {
+    my $self = shift;
+    my $max = $self->{max_reqs_per_child};
+    if (my $min = $self->{min_reqs_per_child}) {
+        srand((rand() * 2 ** 30) ^ $$ ^ time);
+        return $max - int(($max - $min + 1) * rand);
+    } else {
+        return $max;
     }
 }
 
