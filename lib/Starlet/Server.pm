@@ -221,11 +221,7 @@ sub _handle_response {
     my $headers = $res->[1];
     my $body = $res->[2];
     
-    my @lines = (
-        "Date: @{[HTTP::Date::time2str()]}\015\012",
-        "Server: $self->{server_software}\015\012",
-    );
-    
+    my @lines;
     my %send_headers;
     for (my $i = 0; $i < @$headers; $i += 2) {
         my $k = $headers->[$i];
@@ -239,6 +235,13 @@ sub _handle_response {
             $send_headers{$lck} = $v;
         }
     }
+    if ( ! exists $send_headers{server} ) {
+        unshift @lines, "Server: $self->{server_software}\015\012";
+    }
+    if ( ! exists $send_headers{date} ) {
+        unshift @lines, "Date: @{[HTTP::Date::time2str()]}\015\012";
+    }
+
     # try to set content-length when keepalive can be used, or disable it
     if ($$use_keepalive_r) {
         if (defined $send_headers{'content-length'}
