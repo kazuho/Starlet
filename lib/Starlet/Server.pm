@@ -123,8 +123,15 @@ sub accept_loop {
                 if ($may_keepalive && $max_reqs_per_child && $proc_req_count >= $max_reqs_per_child) {
                     $may_keepalive = undef;
                 }
-                $self->handle_connection($env, $conn, $app, $may_keepalive, $req_count != 1)
-                    or last;
+
+                my $use_keepalive = $self->handle_connection($env, $conn, $app, $may_keepalive, $req_count != 1);
+
+                if ($env->{'psgix.harakiri'}) {
+                    $conn->close;
+                    return;
+                }
+
+                $use_keepalive or last;
                 # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
             }
             $conn->close;
