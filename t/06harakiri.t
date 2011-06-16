@@ -26,7 +26,7 @@ test_psgi
 test_psgi
     app => sub {
         my $env = shift;
-        $env->{'psgix.harakiri'} = 1;
+        $env->{'psgix.harakiri.commit'} = $env->{'psgix.harakiri'};
         return [ 200, [ 'Content-Type' => 'text/plain' ], [$$] ];
     },
     client => sub {

@@ -116,6 +116,7 @@ sub accept_loop {
                     'psgi.nonblocking'  => Plack::Util::FALSE,
                     'psgix.input.buffered' => Plack::Util::TRUE,
                     'psgix.io'          => $conn,
+                    'psgix.harakiri'    => 1,
                 };
 
                 # no need to take care of pipelining since this module is a HTTP/1.0 server
@@ -126,7 +127,7 @@ sub accept_loop {
 
                 my $use_keepalive = $self->handle_connection($env, $conn, $app, $may_keepalive, $req_count != 1);
 
-                if ($env->{'psgix.harakiri'}) {
+                if ($env->{'psgix.harakiri.commit'}) {
                     $conn->close;
                     return;
                 }
