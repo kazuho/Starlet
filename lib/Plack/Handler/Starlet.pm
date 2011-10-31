@@ -62,7 +62,7 @@ sub run {
             $pm_args{err_respawn_interval} = $self->{err_respawn_interval};
         }
         my $pm = Parallel::Prefork->new(\%pm_args);
-        while ($pm->signal_received ne 'TERM') {
+        while ($pm->signal_received !~ /^(TERM|USR1)$/) {
             $pm->start and next;
             $self->accept_loop($app, $self->_calc_reqs_per_child());
             $pm->finish;
