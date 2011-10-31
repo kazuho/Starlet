@@ -116,6 +116,7 @@ sub accept_loop {
                     'psgi.nonblocking'  => Plack::Util::FALSE,
                     'psgix.input.buffered' => Plack::Util::TRUE,
                     'psgix.io'          => $conn,
+                    'psgix.harakiri'    => 1,
                 };
 
                 # no need to take care of pipelining since this module is a HTTP/1.0 server
@@ -123,8 +124,15 @@ sub accept_loop {
                 if ($may_keepalive && $max_reqs_per_child && $proc_req_count >= $max_reqs_per_child) {
                     $may_keepalive = undef;
                 }
-                $self->handle_connection($env, $conn, $app, $may_keepalive, $req_count != 1)
-                    or last;
+
+                my $use_keepalive = $self->handle_connection($env, $conn, $app, $may_keepalive, $req_count != 1);
+
+                if ($env->{'psgix.harakiri.commit'}) {
+                    $conn->close;
+                    return;
+                }
+
+                $use_keepalive or last;
                 # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
             }
             $conn->close;
