@@ -2,7 +2,7 @@ package Starlet;
 
 use 5.008_001;
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 1;
 __END__
@@ -58,6 +58,10 @@ max. number of requests to be handled before a worker process exits (default: 10
 =head2 --min-reqs-per-child=#
 
 if set, randomizes the number of requests handled by a single worker process between the value and that supplied by C<--max-reqs-per-chlid> (default: none)
+
+=head2 --spawn-interval=#
+
+if set, worker processes will not be spawned more than once than every given seconds.  Also, when SIGHUP is being received, no more than one worker processes will be collected every given seconds.  This feature is useful for doing a "slow-restart".  See http://blog.kazuhooku.com/2011/04/web-serverstarter-parallelprefork.html for more information. (dedault: none)
 
 =head1 NOTES
 

@@ -1,5 +1,10 @@
 Revision history for Perl extension Starlet
 
+0.14
+	- support for randomized reqs-per-child
+	- support for slow restart
+	- do not send Server header more than once per every response
+
 0.13
 	- test compatibilty improvement: ignore proxy setting while running tests (datamuc)
 
