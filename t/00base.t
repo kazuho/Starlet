@@ -55,7 +55,6 @@ sub doit {
 
 if ($start_server) {
     doit('Starlet');
-    doit('Standalone::Prefork::Server::Starter');
 } else {
     warn "could not find `start_server' next to $^X nor from \$PATH, skipping tests";
 }
