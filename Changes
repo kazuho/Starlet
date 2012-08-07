@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.15
+	- unbundle Plack::Standalone::Server::Prefork::Server::Starter (see `perldoc Starlet` to find out how to boot Starlet using Server::Starter)
+
 0.14
 	- support for randomized reqs-per-child
 	- support for slow restart
