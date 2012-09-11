@@ -106,6 +106,7 @@ sub accept_loop {
                     SERVER_NAME => $self->{host},
                     SCRIPT_NAME => '',
                     REMOTE_ADDR => $conn->peerhost,
+                    REMOTE_PORT => $conn->peerport,
                     'psgi.version' => [ 1, 1 ],
                     'psgi.errors'  => *STDERR,
                     'psgi.url_scheme' => 'http',
