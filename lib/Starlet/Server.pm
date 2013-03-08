@@ -89,8 +89,25 @@ sub accept_loop {
     my($self, $app, $max_reqs_per_child) = @_;
     my $proc_req_count = 0;
 
+    $self->{can_exit} = 1;
+    $self->{term_received} = 0;
+    my $is_keepalive = 0;
+    local $SIG{TERM} = sub {
+        exit 0 unless $self->{register_sigterm};
+        $self->{term_received}++;
+        exit 0
+            if ($is_keepalive && $self->{can_exit}) || $self->{term_received} > 1;
+        # warn "server termination delayed while handling current HTTP request";
+    };
+
+    $self->{ignore_sigpipe} = 0;
+    local $SIG{PIPE} = sub {
+        return if $self->{ignore_sigpipe};
+        exit 1;
+    };
+
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
-        local $SIG{PIPE} = 'IGNORE';
+        local $self->{ignore_sigpipe} = 1;
         if (my $conn = $self->{listen_sock}->accept) {
             $self->{_is_deferred_accept} = $self->{_using_defer_accept};
             $conn->blocking(0)
@@ -124,6 +141,7 @@ sub accept_loop {
                 if ($may_keepalive && $max_reqs_per_child && $proc_req_count >= $max_reqs_per_child) {
                     $may_keepalive = undef;
                 }
+                $is_keepalive = ($req_count != 1) ? 1 : 0;
                 $self->handle_connection($env, $conn, $app, $may_keepalive, $req_count != 1)
                     or last;
                 # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
@@ -139,21 +157,14 @@ sub handle_connection {
     my $buf = '';
     my $res = [ 400, [ 'Content-Type' => 'text/plain' ], [ 'Bad Request' ] ];
     
-    my $can_exit = 1;
-    my $term_received = 0;
-    local $SIG{TERM} = sub {
-        $term_received++;
-        exit 0
-            if ($is_keepalive && $can_exit) || $term_received > 1;
-        # warn "server termination delayed while handling current HTTP request";
-    };
-    
+    $self->{can_exit} = 1;
+    local $self->{register_sigterm} = 1;
     while (1) {
         my $rlen = $self->read_timeout(
             $conn, \$buf, MAX_REQUEST_SIZE - length($buf), length($buf),
             $is_keepalive ? $self->{keepalive_timeout} : $self->{timeout},
         ) or return;
-        undef $can_exit;
+        $self->{can_exit} = 0;
         my $reqlen = parse_http_request($buf, $env);
         if ($reqlen >= 0) {
             # handle request
@@ -206,8 +217,7 @@ sub handle_connection {
     } else {
         die "Bad response $res";
     }
-
-    if ($term_received) {
+    if ($self->{term_received}) {
         exit 0;
     }
     
