@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.16
+	- Set REMOTE_PORT environment variable (kazeburo)
+
 0.15
 	- unbundle Plack::Standalone::Server::Prefork::Server::Starter (see `perldoc Starlet` to find out how to boot Starlet using Server::Starter)
 
