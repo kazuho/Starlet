@@ -90,24 +90,18 @@ sub accept_loop {
     my $proc_req_count = 0;
 
     $self->{can_exit} = 1;
-    $self->{term_received} = 0;
     my $is_keepalive = 0;
     local $SIG{TERM} = sub {
-        exit 0 unless $self->{register_sigterm};
+        exit 0 if $self->{can_exit};
         $self->{term_received}++;
         exit 0
             if ($is_keepalive && $self->{can_exit}) || $self->{term_received} > 1;
         # warn "server termination delayed while handling current HTTP request";
     };
 
-    $self->{ignore_sigpipe} = 0;
-    local $SIG{PIPE} = sub {
-        return if $self->{ignore_sigpipe};
-        exit 1;
-    };
+    local $SIG{PIPE} = 'IGNORE';
 
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
-        local $self->{ignore_sigpipe} = 1;
         if (my $conn = $self->{listen_sock}->accept) {
             $self->{_is_deferred_accept} = $self->{_using_defer_accept};
             $conn->blocking(0)
@@ -157,8 +151,7 @@ sub handle_connection {
     my $buf = '';
     my $res = [ 400, [ 'Content-Type' => 'text/plain' ], [ 'Bad Request' ] ];
     
-    $self->{can_exit} = 1;
-    local $self->{register_sigterm} = 1;
+    local $self->{can_exit} = 1;
     while (1) {
         my $rlen = $self->read_timeout(
             $conn, \$buf, MAX_REQUEST_SIZE - length($buf), length($buf),
