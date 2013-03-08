@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.17_01
+	- reduce rt_sig* syscalls (kazeburo)
+
 0.16
 	- Set REMOTE_PORT environment variable (kazeburo)
 
