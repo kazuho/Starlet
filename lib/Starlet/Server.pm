@@ -262,7 +262,7 @@ sub _handle_response {
     push @lines, "\015\012";
     
     if (defined $body && ref $body eq 'ARRAY' && @$body == 1
-            && length $body->[0] < 1024) {
+            && length $body->[0] < 8192) {
         # combine response header and small request body
         $self->write_all(
             $conn, join('', @lines, $body->[0]), $self->{timeout},
