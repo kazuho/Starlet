@@ -1,5 +1,9 @@
 Revision history for Perl extension Starlet
 
+0.19
+	- update the dependencies now that Plack no more depends on LWP (miyagawa; https://github.com/plack/Plack/pull/408)
+	- add support for psgix.harakiri (audreyt)
+
 0.18
 	- change threshold for combining headers and body from 1024 bytes to 8192
 
