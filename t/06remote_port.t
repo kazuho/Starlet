@@ -34,6 +34,7 @@ test_tcp(
             my $remote_port = $env->{REMOTE_PORT};
             [200, ['Content-Type'=>'text/html'], ['HELLO '.$remote_port]];
         });
+        exit;
     },
 );
 
