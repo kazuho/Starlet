@@ -102,12 +102,14 @@ sub accept_loop {
     local $SIG{PIPE} = 'IGNORE';
 
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
-        if (my $conn = $self->{listen_sock}->accept) {
+        if (my ($conn,$peer) = $self->{listen_sock}->accept) {
             $self->{_is_deferred_accept} = $self->{_using_defer_accept};
             $conn->blocking(0)
                 or die "failed to set socket to nonblocking mode:$!";
             $conn->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
                 or die "setsockopt(TCP_NODELAY) failed:$!";
+            my ($peerport,$peerhost) = unpack_sockaddr_in $peer;
+            my $peeraddr = inet_ntoa($peerhost);
             my $req_count = 0;
             while (1) {
                 ++$req_count;
@@ -116,8 +118,8 @@ sub accept_loop {
                     SERVER_PORT => $self->{port},
                     SERVER_NAME => $self->{host},
                     SCRIPT_NAME => '',
-                    REMOTE_ADDR => $conn->peerhost,
-                    REMOTE_PORT => $conn->peerport,
+                    REMOTE_ADDR => $peeraddr,
+                    REMOTE_PORT => $peerport,
                     'psgi.version' => [ 1, 1 ],
                     'psgi.errors'  => *STDERR,
                     'psgi.url_scheme' => 'http',
