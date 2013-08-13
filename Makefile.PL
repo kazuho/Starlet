@@ -9,5 +9,6 @@ requires 'Parallel::Prefork' => 0.13;
 requires 'Server::Starter' => 0.06;
 test_requires 'Test::More' => 0.88;
 test_requires 'Test::TCP'  => 0.15;
+test_requires 'LWP::UserAgent' => 5.80;
 
 WriteAll;
