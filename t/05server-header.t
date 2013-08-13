@@ -34,6 +34,7 @@ test_tcp(
             push @headers, 'Server', 'Hello' if $env->{QUERY_STRING};
             [200, \@headers, ['HELLO']];
         });
+        exit;
     },
 );
 
