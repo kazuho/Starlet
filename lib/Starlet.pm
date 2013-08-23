@@ -21,7 +21,7 @@ Starlet - a simple, high-performance PSGI/Plack HTTP server
 
 =head1 DESCRIPTION
 
-Starlet is a standalone HTTP/1.0 server with keep-alive support, formerly known as L<Plack::Server::Standalone::Prefork> and L<Plack::Server::Standalone::Prefork::Server::Starter>.
+Starlet is a standalone HTTP/1.1 web server, formerly known as L<Plack::Server::Standalone::Prefork> and L<Plack::Server::Standalone::Prefork::Server::Starter>.
 
 The server supports following features, and is suitable for running HTTP application servers behind a reverse proxy.
 
