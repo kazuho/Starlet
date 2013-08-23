@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.20
+	- support HTTP/1.1 (kazeburo)
+
 0.19
 	- update the dependencies now that Plack no more depends on LWP (miyagawa; https://github.com/plack/Plack/pull/408)
 	- add support for psgix.harakiri (audreyt)
