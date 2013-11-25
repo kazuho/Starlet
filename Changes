@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.21
+	- support listening to unix socket (passed by Server::Starter) (kazeburo)
+
 0.20
 	- support HTTP/1.1 (kazeburo)
 
