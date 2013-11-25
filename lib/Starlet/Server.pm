@@ -77,10 +77,10 @@ sub setup_listener {
     ) or die "failed to listen to port $self->{port}:$!";
 
     my $family = Socket::sockaddr_family(getsockname($self->{listen_sock}));
-    $self->{_listen_unix} = $family == AF_UNIX;
+    $self->{_listen_sock_is_tcp} = $family != AF_UNIX;
 
     # set defer accept
-    if ($^O eq 'linux' && !$self->{_listen_unix}) {
+    if ($^O eq 'linux' && $self->{_listen_sock_is_tcp}) {
         setsockopt($self->{listen_sock}, IPPROTO_TCP, 9, 1)
             and $self->{_using_defer_accept} = 1;
     }
@@ -110,11 +110,11 @@ sub accept_loop {
             $self->{_is_deferred_accept} = $self->{_using_defer_accept};
             $conn->blocking(0)
                 or die "failed to set socket to nonblocking mode:$!";
-            my ($peerport,$peerhost, $peeraddr) = (0, undef, undef);
-            if ( !$self->{_listen_unix} ) {
+            my ($peerport, $peerhost, $peeraddr) = (0, undef, undef);
+            if ($self->{_listen_sock_is_tcp}) {
                 $conn->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
                     or die "setsockopt(TCP_NODELAY) failed:$!";
-                ($peerport,$peerhost) = unpack_sockaddr_in $peer;
+                ($peerport, $peerhost) = unpack_sockaddr_in $peer;
                 $peeraddr = inet_ntoa($peerhost);
             }
             my $req_count = 0;
