@@ -76,8 +76,11 @@ sub setup_listener {
         ReuseAddr => 1,
     ) or die "failed to listen to port $self->{port}:$!";
 
+    my $family = Socket::sockaddr_family(getsockname($self->{listen_sock}));
+    $self->{_listen_sock_is_tcp} = $family != AF_UNIX;
+
     # set defer accept
-    if ($^O eq 'linux') {
+    if ($^O eq 'linux' && $self->{_listen_sock_is_tcp}) {
         setsockopt($self->{listen_sock}, IPPROTO_TCP, 9, 1)
             and $self->{_using_defer_accept} = 1;
     }
@@ -107,10 +110,13 @@ sub accept_loop {
             $self->{_is_deferred_accept} = $self->{_using_defer_accept};
             $conn->blocking(0)
                 or die "failed to set socket to nonblocking mode:$!";
-            $conn->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
-                or die "setsockopt(TCP_NODELAY) failed:$!";
-            my ($peerport,$peerhost) = unpack_sockaddr_in $peer;
-            my $peeraddr = inet_ntoa($peerhost);
+            my ($peerport, $peerhost, $peeraddr) = (0, undef, undef);
+            if ($self->{_listen_sock_is_tcp}) {
+                $conn->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
+                    or die "setsockopt(TCP_NODELAY) failed:$!";
+                ($peerport, $peerhost) = unpack_sockaddr_in $peer;
+                $peeraddr = inet_ntoa($peerhost);
+            }
             my $req_count = 0;
             my $pipelined_buf = '';
 
@@ -118,8 +124,8 @@ sub accept_loop {
                 ++$req_count;
                 ++$proc_req_count;
                 my $env = {
-                    SERVER_PORT => $self->{port},
-                    SERVER_NAME => $self->{host},
+                    SERVER_PORT => $self->{port} || 0,
+                    SERVER_NAME => $self->{host} || 0,
                     SCRIPT_NAME => '',
                     REMOTE_ADDR => $peeraddr,
                     REMOTE_PORT => $peerport,
