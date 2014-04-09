@@ -12,6 +12,7 @@ sub new {
     
     # setup before instantiation
     if (defined $ENV{SERVER_STARTER_PORT}) {
+        $args{listens} = [];
         my $server_ports = Server::Starter::server_ports();
         for my $hostport (keys %$server_ports) {
             my $fd = $server_ports->{$hostport};
@@ -27,6 +28,10 @@ sub new {
             ) or die "failed to create socket:$!";
             $listen->{sock}->fdopen($fd, 'w')
                 or die "failed to bind to listening socket:$!";
+            unless (@{$args{listens}}) {
+                $args{host} = $listen->{host};
+                $args{port} = $listen->{port};
+            }
             $args{listens}[$fd] = $listen;
         }
     }

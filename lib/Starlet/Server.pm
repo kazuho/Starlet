@@ -69,7 +69,7 @@ sub run {
 
 sub setup_listener {
     my $self = shift;
-    unless (grep {defined $_} @{$self->{listens}}) {
+    if (scalar(grep {defined $_} @{$self->{listens}}) == 0) {
         my $sock =
             IO::Socket::INET->new(
                 Listen    => SOMAXCONN,
@@ -87,12 +87,10 @@ sub setup_listener {
 
     for my $listen (grep {defined $_} @{$self->{listens}}) {
         my $family = Socket::sockaddr_family(getsockname($listen->{sock}));
-        $listen->{_listen_sock_is_tcp} = $family != AF_UNIX;
-
-        $listen->{sock}->blocking(0);
+        $listen->{_is_tcp} = $family != AF_UNIX;
 
         # set defer accept
-        if ($^O eq 'linux' && $listen->{_listen_sock_is_tcp}) {
+        if ($^O eq 'linux' && $listen->{_is_tcp}) {
             setsockopt($listen->{sock}, IPPROTO_TCP, 9, 1)
                 and $listen->{_using_defer_accept} = 1;
         }
@@ -118,77 +116,96 @@ sub accept_loop {
 
     local $SIG{PIPE} = 'IGNORE';
 
-    my $rin = '';
-    my @fds;
-    for my $listen (grep {defined $_} @{$self->{listens}}) {
-        my $fd = fileno($listen->{sock});
-        push @fds, $fd;
-        vec($rin, $fd, 1) = 1;
+    my @listens = grep {defined $_} @{$self->{listens}};
+    if (scalar(@listens) == 1) {
+        while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
+            my ($req_count, $is_harakiri) = $self->do_accept($listens[0], $app, $proc_req_count, $max_reqs_per_child);
+            return if $is_harakiri;
+            $proc_req_count += $req_count;
+        }
     }
+    else {
+        my $rin = '';
+        my @fds;
+        for my $listen (@listens) {
+            $listen->{sock}->blocking(0);
+            my $fd = fileno($listen->{sock});
+            push @fds, $fd;
+            vec($rin, $fd, 1) = 1;
+        }
 
-    while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
-        my $nfound = select(my $rout = $rin, undef, undef, undef);
-        for (my $i = 0; $nfound > 0; ++$i) {
-            my $fd = $fds[$i];
-            next unless vec($rout, $fd, 1);
-            --$nfound;
-            my $listen = $self->{listens}[$fd];
-            if (my ($conn,$peer) = $listen->{sock}->accept) {
-                $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
-                $conn->blocking(0)
-                    or die "failed to set socket to nonblocking mode:$!";
-                my ($peerport, $peerhost, $peeraddr) = (0, undef, undef);
-                if ( $listen->{_listen_sock_is_tcp} ) {
-                    $conn->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
-                        or die "setsockopt(TCP_NODELAY) failed:$!";
-                    ($peerport, $peerhost) = unpack_sockaddr_in $peer;
-                    $peeraddr = inet_ntoa($peerhost);
-                }
-                my $req_count = 0;
-                my $pipelined_buf = '';
-
-                while (1) {
-                    ++$req_count;
-                    ++$proc_req_count;
-                    my $env = {
-                        SERVER_PORT => $listen->{port} || 0,
-                        SERVER_NAME => $listen->{host} || 0,
-                        SCRIPT_NAME => '',
-                        REMOTE_ADDR => $peeraddr,
-                        REMOTE_PORT => $peerport,
-                        'psgi.version' => [ 1, 1 ],
-                        'psgi.errors'  => *STDERR,
-                        'psgi.url_scheme' => 'http',
-                        'psgi.run_once'     => Plack::Util::FALSE,
-                        'psgi.multithread'  => Plack::Util::FALSE,
-                        'psgi.multiprocess' => $self->{is_multiprocess},
-                        'psgi.streaming'    => Plack::Util::TRUE,
-                        'psgi.nonblocking'  => Plack::Util::FALSE,
-                        'psgix.input.buffered' => Plack::Util::TRUE,
-                        'psgix.io'          => $conn,
-                        'psgix.harakiri'    => 1,
-                    };
-
-                    my $may_keepalive = $req_count < $self->{max_keepalive_reqs};
-                    if ($may_keepalive && $max_reqs_per_child && $proc_req_count >= $max_reqs_per_child) {
-                        $may_keepalive = undef;
-                    }
-                    $may_keepalive = 1 if length $pipelined_buf;
-                    my $keepalive;
-                    ($keepalive, $pipelined_buf) = $self->handle_connection($env, $conn, $app,
-                                                                            $may_keepalive, $req_count != 1, $pipelined_buf);
-
-                    if ($env->{'psgix.harakiri.commit'}) {
-                        $conn->close;
-                        return;
-                    }
-                    last unless $keepalive;
-                    # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
-                }
-                $conn->close;
+        while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
+            my $nfound = select(my $rout = $rin, undef, undef, undef);
+            for (my $i = 0; $nfound > 0; ++$i) {
+                my $fd = $fds[$i];
+                next unless vec($rout, $fd, 1);
+                --$nfound;
+                my $listen = $self->{listens}[$fd];
+                my ($req_count, $is_harakiri) = $self->do_accept($listen, $app, $proc_req_count, $max_reqs_per_child);
+                return if $is_harakiri;
+                $proc_req_count += $req_count;
+                return unless ! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child;
             }
         }
     }
+}
+
+sub do_accept {
+    my ($self, $listen, $app, $proc_req_count, $max_reqs_per_child) = @_;
+    my ($conn, $peer);
+    return (0, 0) unless ($conn, $peer) = $listen->{sock}->accept;
+    $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
+    $conn->blocking(0)
+        or die "failed to set socket to nonblocking mode:$!";
+    my ($peerport, $peerhost, $peeraddr) = (0, undef, undef);
+    if ( $listen->{_is_tcp} ) {
+        $conn->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
+            or die "setsockopt(TCP_NODELAY) failed:$!";
+        ($peerport, $peerhost) = unpack_sockaddr_in $peer;
+        $peeraddr = inet_ntoa($peerhost);
+    }
+    my $req_count = 0;
+    my $pipelined_buf = '';
+
+    while (1) {
+        ++$req_count;
+        my $env = {
+            SERVER_PORT => $listen->{port} || 0,
+            SERVER_NAME => $listen->{host} || 0,
+            SCRIPT_NAME => '',
+            REMOTE_ADDR => $peeraddr,
+            REMOTE_PORT => $peerport,
+            'psgi.version' => [ 1, 1 ],
+            'psgi.errors'  => *STDERR,
+            'psgi.url_scheme' => 'http',
+            'psgi.run_once'     => Plack::Util::FALSE,
+            'psgi.multithread'  => Plack::Util::FALSE,
+            'psgi.multiprocess' => $self->{is_multiprocess},
+            'psgi.streaming'    => Plack::Util::TRUE,
+            'psgi.nonblocking'  => Plack::Util::FALSE,
+            'psgix.input.buffered' => Plack::Util::TRUE,
+            'psgix.io'          => $conn,
+            'psgix.harakiri'    => 1,
+        };
+
+        my $may_keepalive = $req_count < $self->{max_keepalive_reqs};
+        if ($may_keepalive && $max_reqs_per_child && $req_count + $proc_req_count >= $max_reqs_per_child) {
+            $may_keepalive = undef;
+        }
+        $may_keepalive = 1 if length $pipelined_buf;
+        my $keepalive;
+        ($keepalive, $pipelined_buf) = $self->handle_connection($env, $conn, $app,
+                                                                $may_keepalive, $req_count != 1, $pipelined_buf);
+
+        if ($env->{'psgix.harakiri.commit'}) {
+            $conn->close;
+            return ($req_count, 1);
+        }
+        last unless $keepalive;
+        # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
+    }
+    $conn->close;
+    return ($req_count, 0);
 }
 
 my $bad_response = [ 400, [ 'Content-Type' => 'text/plain', 'Connection' => 'close' ], [ 'Bad Request' ] ];
