@@ -96,6 +96,7 @@ sub setup_listener {
         }
     }
 
+    $self->{_acceptor} = $self->_get_acceptor;
     $self->{server_ready}->($self);
 }
 
@@ -116,10 +117,8 @@ sub accept_loop {
 
     local $SIG{PIPE} = 'IGNORE';
 
-    my $acceptor = $self->_get_acceptor;
-
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
-        my ($conn, $peer, $listen) = $acceptor->();
+        my ($conn, $peer, $listen) = $self->{_acceptor}->();
         $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
         $conn->blocking(0)
             or die "failed to set socket to nonblocking mode:$!";
@@ -199,8 +198,12 @@ sub _get_acceptor {
             push @fds, $fd;
             vec($rin, $fd, 1) = 1;
         }
+
+        pipe(my $waiting, my $ready);
+        syswrite($ready, 'f', 1); # first
         return sub {
             while (1) {
+                sysread($waiting, my $c, 1); # waiting for exclusive lock
                 my $nfound = select(my $rout = $rin, undef, undef, undef);
                 for (my $i = 0; $nfound > 0; ++$i) {
                     my $fd = $fds[$i];
@@ -208,9 +211,11 @@ sub _get_acceptor {
                     --$nfound;
                     my $listen = $self->{listens}[$fd];
                     if (my ($conn, $peer) = $listen->{sock}->accept) {
-                        return ($conn, $peer, $listen)
+                        syswrite($ready, 'n', 1); # next
+                        return ($conn, $peer, $listen);
                     }
                 }
+                syswrite($ready, 'n', 1); # next
             }
         };
     }
