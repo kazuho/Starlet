@@ -13,6 +13,8 @@ use Plack::Util;
 use Plack::TempBuffer;
 use POSIX qw(EINTR EAGAIN EWOULDBLOCK);
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
+use File::Temp qw(tempfile);
+use Fcntl qw(:flock);
 
 use Try::Tiny;
 use Time::HiRes qw(time);
@@ -199,11 +201,18 @@ sub _get_acceptor {
             vec($rin, $fd, 1) = 1;
         }
 
-        pipe(my $waiting, my $ready);
-        syswrite($ready, 'f', 1); # first
+        my (undef, $lock_path) = tempfile(UNLINK => 1);
+
         return sub {
+            unless ($self->{_lock_fh}) {
+                open($self->{_lock_fh}, '>', $lock_path)
+                    or die "faild to open lock file:$!";
+            }
             while (1) {
-                sysread($waiting, my $c, 1); # waiting for exclusive lock
+                while (! flock($self->{_lock_fh}, LOCK_EX)) {
+                    next if $! == EINTR;
+                    die "failed to lock:$!";
+                }
                 my $nfound = select(my $rout = $rin, undef, undef, undef);
                 for (my $i = 0; $nfound > 0; ++$i) {
                     my $fd = $fds[$i];
@@ -211,11 +220,11 @@ sub _get_acceptor {
                     --$nfound;
                     my $listen = $self->{listens}[$fd];
                     if (my ($conn, $peer) = $listen->{sock}->accept) {
-                        syswrite($ready, 'n', 1); # next
+                        flock($self->{_lock_fh}, LOCK_UN);
                         return ($conn, $peer, $listen);
                     }
                 }
-                syswrite($ready, 'n', 1); # next
+                flock($self->{_lock_fh}, LOCK_UN);
             }
         };
     }
