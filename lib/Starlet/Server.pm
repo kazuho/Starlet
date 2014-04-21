@@ -87,7 +87,8 @@ sub setup_listener {
         };
     }
 
-    for my $listen (grep {defined $_} @{$self->{listens}}) {
+    my @listens = grep {defined $_} @{$self->{listens}};
+    for my $listen (@listens) {
         my $family = Socket::sockaddr_family(getsockname($listen->{sock}));
         $listen->{_is_tcp} = $family != AF_UNIX;
 
@@ -98,7 +99,13 @@ sub setup_listener {
         }
     }
 
-    $self->{_acceptor} = $self->_get_acceptor;
+    if (scalar(@listens) > 1) {
+        $self->{lock_path} ||= do {
+            my (undef, $lock_path) = tempfile(UNLINK => 1);
+            $lock_path;
+        };
+    }
+
     $self->{server_ready}->($self);
 }
 
@@ -119,8 +126,10 @@ sub accept_loop {
 
     local $SIG{PIPE} = 'IGNORE';
 
+    my $acceptor = $self->_get_acceptor;
+
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
-        my ($conn, $peer, $listen) = $self->{_acceptor}->();
+        my ($conn, $peer, $listen) = $acceptor->();
         $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
         $conn->blocking(0)
             or die "failed to set socket to nonblocking mode:$!";
@@ -201,15 +210,12 @@ sub _get_acceptor {
             vec($rin, $fd, 1) = 1;
         }
 
-        my (undef, $lock_path) = tempfile(UNLINK => 1);
+        open(my $lock_fh, '>', $self->{lock_path})
+            or die "faild to open lock file:$!";
 
         return sub {
-            unless ($self->{_lock_fh}) {
-                open($self->{_lock_fh}, '>', $lock_path)
-                    or die "faild to open lock file:$!";
-            }
             while (1) {
-                while (! flock($self->{_lock_fh}, LOCK_EX)) {
+                while (! flock($lock_fh, LOCK_EX)) {
                     next if $! == EINTR;
                     die "failed to lock:$!";
                 }
@@ -220,11 +226,11 @@ sub _get_acceptor {
                     --$nfound;
                     my $listen = $self->{listens}[$fd];
                     if (my ($conn, $peer) = $listen->{sock}->accept) {
-                        flock($self->{_lock_fh}, LOCK_UN);
+                        flock($lock_fh, LOCK_UN);
                         return ($conn, $peer, $listen);
                     }
                 }
-                flock($self->{_lock_fh}, LOCK_UN);
+                flock($lock_fh, LOCK_UN);
             }
         };
     }
