@@ -1,7 +1,10 @@
 Revision history for Perl extension Starlet
 
+0.23
+	- serialize calls to select -> accept when listening to multiple ports
+
 0.22
-	- listen to muliple ports passed from Server::Starter (ttakezawa)
+	- listen to multiple ports passed from Server::Starter (ttakezawa)
 
 0.21
 	- support listening to unix socket (passed by Server::Starter) (kazeburo)
