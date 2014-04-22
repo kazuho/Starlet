@@ -101,7 +101,11 @@ sub setup_listener {
 
     if (scalar(@listens) > 1) {
         $self->{lock_path} ||= do {
-            my (undef, $lock_path) = tempfile(UNLINK => 1);
+            my ($fh, $lock_path) = tempfile(UNLINK => 1);
+            # closing the file handle explicitly for two reasons
+            # 1) tempfile retains the handle when UNLINK is set
+            # 2) tempfile implicitely locks the file on OS X
+            close $fh;
             $lock_path;
         };
     }
