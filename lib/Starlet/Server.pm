@@ -121,7 +121,7 @@ sub accept_loop {
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
         my ($conn, $peer, $listen) = $acceptor->();
         $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
-        $conn->blocking(0)
+        defined($conn->blocking(0))
             or die "failed to set socket to nonblocking mode:$!";
         my ($peerport, $peerhost, $peeraddr) = (0, undef, undef);
         if ($listen->{_is_tcp}) {
@@ -194,7 +194,8 @@ sub _get_acceptor {
         my @fds;
         my $rin = '';
         for my $listen (@listens) {
-            $listen->{sock}->blocking(0);
+            defined($listen->{sock}->blocking(0))
+	        or die "failed to set listening socket to non-blocking mode:$!";
             my $fd = fileno($listen->{sock});
             push @fds, $fd;
             vec($rin, $fd, 1) = 1;
