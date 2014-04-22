@@ -13,6 +13,8 @@ use Plack::Util;
 use Plack::TempBuffer;
 use POSIX qw(EINTR EAGAIN EWOULDBLOCK);
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
+use File::Temp qw(tempfile);
+use Fcntl qw(:flock);
 
 use Try::Tiny;
 use Time::HiRes qw(time);
@@ -85,7 +87,8 @@ sub setup_listener {
         };
     }
 
-    for my $listen (grep {defined $_} @{$self->{listens}}) {
+    my @listens = grep {defined $_} @{$self->{listens}};
+    for my $listen (@listens) {
         my $family = Socket::sockaddr_family(getsockname($listen->{sock}));
         $listen->{_is_tcp} = $family != AF_UNIX;
 
@@ -94,6 +97,13 @@ sub setup_listener {
             setsockopt($listen->{sock}, IPPROTO_TCP, 9, 1)
                 and $listen->{_using_defer_accept} = 1;
         }
+    }
+
+    if (scalar(@listens) > 1) {
+        $self->{lock_path} ||= do {
+            my (undef, $lock_path) = tempfile(UNLINK => 1);
+            $lock_path;
+        };
     }
 
     $self->{server_ready}->($self);
@@ -199,8 +209,16 @@ sub _get_acceptor {
             push @fds, $fd;
             vec($rin, $fd, 1) = 1;
         }
+
+        open(my $lock_fh, '>', $self->{lock_path})
+            or die "faild to open lock file:$!";
+
         return sub {
             while (1) {
+                while (! flock($lock_fh, LOCK_EX)) {
+                    next if $! == EINTR;
+                    die "failed to lock:$!";
+                }
                 my $nfound = select(my $rout = $rin, undef, undef, undef);
                 for (my $i = 0; $nfound > 0; ++$i) {
                     my $fd = $fds[$i];
@@ -208,9 +226,11 @@ sub _get_acceptor {
                     --$nfound;
                     my $listen = $self->{listens}[$fd];
                     if (my ($conn, $peer) = $listen->{sock}->accept) {
-                        return ($conn, $peer, $listen)
+                        flock($lock_fh, LOCK_UN);
+                        return ($conn, $peer, $listen);
                     }
                 }
+                flock($lock_fh, LOCK_UN);
             }
         };
     }
