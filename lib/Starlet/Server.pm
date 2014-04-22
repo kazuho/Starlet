@@ -211,13 +211,13 @@ sub _get_acceptor {
         }
 
         open(my $lock_fh, '>', $self->{lock_path})
-            or die "faild to open lock file:$!";
+            or die "failed to open lock file:@{[$self->{lock_path}]}:$!";
 
         return sub {
             while (1) {
                 while (! flock($lock_fh, LOCK_EX)) {
                     next if $! == EINTR;
-                    die "failed to lock:$!";
+                    die "failed to lock file:@{[$self->{lock_path}]}:$!";
                 }
                 my $nfound = select(my $rout = $rin, undef, undef, undef);
                 for (my $i = 0; $nfound > 0; ++$i) {
