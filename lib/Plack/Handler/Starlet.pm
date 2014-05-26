@@ -71,6 +71,7 @@ sub run {
         my $pm = Parallel::Prefork->new(\%pm_args);
         while ($pm->signal_received !~ /^(TERM|USR1)$/) {
             $pm->start and next;
+            srand((rand() * 2 ** 30) ^ $$ ^ time);
             $self->accept_loop($app, $self->_calc_reqs_per_child());
             $pm->finish;
         }
@@ -88,7 +89,6 @@ sub _calc_reqs_per_child {
     my $self = shift;
     my $max = $self->{max_reqs_per_child};
     if (my $min = $self->{min_reqs_per_child}) {
-        srand((rand() * 2 ** 30) ^ $$ ^ time);
         return $max - int(($max - $min + 1) * rand);
     } else {
         return $max;
