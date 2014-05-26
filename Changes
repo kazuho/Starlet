@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.24
+	- worker processes always receive different sequence of values when calling "rand()"
+
 0.23
 	- serialize calls to select -> accept when listening to multiple ports
 
