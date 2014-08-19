@@ -54,7 +54,7 @@ COMMAND LINE OPTIONS
     worker processes will be collected every given seconds. This feature is
     useful for doing a "slow-restart". See
     http://blog.kazuhooku.com/2011/04/web-serverstarter-parallelprefork.html
-    for more information. (dedault: none)
+    for more information. (default: none)
 
 NOTES
     Starlet is designed and implemented to be simple, secure and fast,
