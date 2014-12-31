@@ -408,7 +408,7 @@ sub _handle_response {
 
     # try to set content-length when keepalive can be used, or disable it
     my $use_chunked;
-    if ( $protocol eq 'HTTP/1.0' ) {
+    if ( ! defined $protocol || $protocol eq 'HTTP/1.0' ) {
         if ($$use_keepalive_r) {
             if (defined $send_headers{'content-length'}
                 || defined $send_headers{'transfer-encoding'}) {
