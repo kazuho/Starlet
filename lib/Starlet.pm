@@ -67,8 +67,6 @@ if set, worker processes will not be spawned more than once than every given sec
 
 L<Starlet> is designed and implemented to be simple, secure and fast, especially for running as an HTTP application server running behind a reverse proxy.  It only depends on a minimal number of well-designed (and well-focused) modules.
 
-On the other hand if you are looking for a standalone preforking HTTP server that receives HTTP requests directly from the Internet, then you should look at L<Starman>.
-
 =head1 SEE ALSO
 
 L<Parallel::Prefork>
