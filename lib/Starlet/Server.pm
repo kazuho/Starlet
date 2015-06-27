@@ -31,7 +31,7 @@ sub new {
     my $self = bless {
         listens              => $args{listens} || [],
         host                 => $args{host} || 0,
-        port                 => $args{port} || 8080,
+        port                 => $args{port} || $args{socket} || 8080,
         timeout              => $args{timeout} || 300,
         keepalive_timeout    => $args{keepalive_timeout} || 2,
         max_keepalive_reqs   => $args{max_keepalive_reqs} || 1,
@@ -72,14 +72,21 @@ sub run {
 sub setup_listener {
     my $self = shift;
     if (scalar(grep {defined $_} @{$self->{listens}}) == 0) {
-        my $sock =
-            IO::Socket::INET->new(
+        my $sock;
+        if ($self->{port} =~ /^[0-9]+$/s) {
+            $sock = IO::Socket::INET->new(
                 Listen    => SOMAXCONN,
                 LocalPort => $self->{port},
                 LocalAddr => $self->{host},
                 Proto     => 'tcp',
                 ReuseAddr => 1,
             ) or die "failed to listen to port $self->{port}:$!";
+        } else {
+            $sock = IO::Socket::UNIX->new(
+                Listen => SOMAXCONN,
+                Local  => $self->{port},
+            ) or die "failed to listen to socket $self->{port}:$!";
+        }
         $self->{listens}[fileno($sock)] = {
             host => $self->{host},
             port => $self->{port},
