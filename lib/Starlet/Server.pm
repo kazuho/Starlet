@@ -408,33 +408,30 @@ sub _handle_response {
 
     # try to set content-length when keepalive can be used, or disable it
     my $use_chunked;
-    if ( $protocol eq 'HTTP/1.0' ) {
-        if ($$use_keepalive_r) {
-            if (defined $send_headers{'content-length'}
-                || defined $send_headers{'transfer-encoding'}) {
-                # ok
-            }
-            elsif ( ! Plack::Util::status_with_no_entity_body($status_code)
-                    && defined(my $cl = Plack::Util::content_length($body))) {
-                push @lines, "Content-Length: $cl\015\012";
-            }
-            else {
-                $$use_keepalive_r = undef
-            }            
-        }
-        push @lines, "Connection: keep-alive\015\012" if $$use_keepalive_r;
-        push @lines, "Connection: close\015\012" if !$$use_keepalive_r; #fmm..
-    }
-    elsif ( $protocol eq 'HTTP/1.1' ) {
+    if (defined($protocol) && $protocol eq 'HTTP/1.1') {
         if (defined $send_headers{'content-length'}
                 || defined $send_headers{'transfer-encoding'}) {
             # ok
-        } elsif ( !Plack::Util::status_with_no_entity_body($status_code) ) {
+        } elsif (!Plack::Util::status_with_no_entity_body($status_code)) {
             push @lines, "Transfer-Encoding: chunked\015\012";
             $use_chunked = 1;
         }
         push @lines, "Connection: close\015\012" unless $$use_keepalive_r;
-
+    } else {
+        # HTTP/1.0
+        if ($$use_keepalive_r) {
+            if (defined $send_headers{'content-length'}
+                || defined $send_headers{'transfer-encoding'}) {
+                # ok
+            } elsif (!Plack::Util::status_with_no_entity_body($status_code)
+                     && defined(my $cl = Plack::Util::content_length($body))) {
+                push @lines, "Content-Length: $cl\015\012";
+            } else {
+                $$use_keepalive_r = undef;
+            }
+        }
+        push @lines, "Connection: keep-alive\015\012" if $$use_keepalive_r;
+        push @lines, "Connection: close\015\012" if !$$use_keepalive_r; #fmm..
     }
 
     unshift @lines, "HTTP/1.1 $status_code @{[ HTTP::Status::status_message($status_code) ]}\015\012";
