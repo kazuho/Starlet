@@ -35,8 +35,8 @@ test_psgi $app, sub {
 
     my $res = $cb->($req);
 
-    is $res->header('X-Content-Length'), 79838;
-    is Digest::MD5::md5_hex($res->content), '983726ae0e4ce5081bef5fb2b7216950';
+    is $res->header('X-Content-Length'), 14750;
+    is Digest::MD5::md5_hex($res->content), '70546a79c7abb9c497ca91730a0686e4';
 };
 
 done_testing;
