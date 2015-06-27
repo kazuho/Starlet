@@ -1,51 +1,75 @@
 use strict;
-use Test::More;
-use Plack::Loader;
-use File::Temp;
+use File::Temp qw(tempfile);
 use IO::Socket::UNIX;
+use Plack::Loader;
 use Socket;
+use Test::More;
 
-my ($fh, $filename) = File::Temp::tempfile(UNLINK=>0);
-close($fh);
-unlink($filename);
+(undef, my $sockfile) = tempfile(UNLINK => 0);
+unlink $sockfile;
 
-my $sock = IO::Socket::UNIX->new(
-    Listen => Socket::SOMAXCONN(),
-    Local  => $filename,
-) or die "failed to listen to socket $filename:$!";
-$ENV{SERVER_STARTER_PORT} = $filename.'='.$sock->fileno;
+sub doit {
+    my $create_loader = shift;
 
-my $pid = fork;
-if ( $pid == 0 ) {
-    # server
-    my $loader = Plack::Loader->load(
-        'Starlet',
-        max_workers => 5,
-    );
-    $loader->run(sub{
-        my $env = shift;
-        my $remote = $env->{REMOTE_ADDR};
-        $remote = 'UNIX' if ! defined $remote;
-        [200, ['Content-Type'=>'text/html'], ["HELLO $remote"]];
-    });
-    exit;
+    my $pid = fork;
+    die "fork failed:$!"
+        unless defined $pid;
+    if ($pid == 0) {
+        # server
+        my $loader = $create_loader->();
+        $loader->run(sub {
+            my $env = shift;
+            my $remote = $env->{REMOTE_ADDR};
+            $remote = 'UNIX' if ! defined $remote;
+            return [
+                200,
+                ['Content-Type'=>'text/html'],
+                ["HELLO $remote"],
+            ];
+        });
+        exit;
+    }
+
+    sleep 1;
+
+    my $client = IO::Socket::UNIX->new(
+        Peer  => $sockfile,
+        timeout => 3,
+    ) or die "failed to listen to socket $sockfile:$!";
+
+    $client->syswrite("GET / HTTP/1.0\015\012\015\012");
+    $client->sysread(my $buf, 1024);
+    like $buf, qr/Starlet/;
+    like $buf, qr/HELLO UNIX/;
+
+    kill 'TERM', $pid;
+    waitpid($pid, 0);
+    unlink($sockfile);
 }
 
-sleep 1;
+subtest 'direct' => sub {
+    doit(sub {
+        return Plack::Loader->load(
+            'Starlet',
+            max_workers => 5,
+            socket => $sockfile,
+        );
+    });
+};
 
-my $client = IO::Socket::UNIX->new(
-    Peer  => $filename,
-    timeout => 3,
-) or die "failed to listen to socket $filename:$!";
+subtest 'server-starter' => sub {
+    doit(sub {
+        my $sock = IO::Socket::UNIX->new(
+            Listen => Socket::SOMAXCONN(),
+            Local  => $sockfile,
+        ) or die "failed to listen to socket $sockfile:$!";
+        $ENV{SERVER_STARTER_PORT} = "$sockfile=@{[$sock->fileno]}";
+        return Plack::Loader->load(
+            'Starlet',
+            max_workers => 5,
+        );
+    });
+};
 
-$client->syswrite("GET / HTTP/1.0\015\012\015\012");
-$client->sysread(my $buf, 1024);
-like $buf, qr/Starlet/;
-like $buf, qr/HELLO UNIX/;
 
 done_testing();
-
-kill 'TERM',$pid;
-waitpid($pid,0);
-unlink($filename);
-
