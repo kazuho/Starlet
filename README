@@ -58,13 +58,9 @@ COMMAND LINE OPTIONS
 
 NOTES
     Starlet is designed and implemented to be simple, secure and fast,
-    especially for running as a HTTP application server running behind a
+    especially for running as an HTTP application server running behind a
     reverse proxy. It only depends on a minimal number of well-designed (and
     well-focused) modules.
-
-    On the other hand if you are looking for a standalone preforking HTTP
-    server that receives HTTP requests directly from the Internet, then you
-    should look at Starman.
 
 SEE ALSO
     Parallel::Prefork Starman Server::Starter

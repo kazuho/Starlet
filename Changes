@@ -1,5 +1,10 @@
 Revision history for Perl extension Starlet
 
+0.25
+	- support listing to unix socket wo. using Server::Starter
+	- suppress warning when receiving broken requests
+	- fix test issue with Plack >= 1.0035
+
 0.24
 	- worker processes always receive different sequence of values when calling "rand()"
 
