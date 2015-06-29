@@ -1,7 +1,6 @@
 use strict;
 use Test::TCP;
 use Plack::Test;
-use File::ShareDir;
 use HTTP::Request;
 use Test::More;
 use Digest::MD5;
@@ -10,7 +9,7 @@ use Digest::MD5;
 $Plack::Test::Impl = "Server";
 $ENV{PLACK_SERVER} = 'Starlet';
 
-my $file = File::ShareDir::dist_dir('Plack') . "/baybridge.jpg";
+my $file = "t/assets/baybridge.jpg";
 
 my $app = sub {
     my $env = shift;
