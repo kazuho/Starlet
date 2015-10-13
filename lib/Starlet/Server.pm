@@ -255,7 +255,11 @@ sub _get_acceptor {
                         exit 0 if $self->{term_received};
                     }
                 }
-                flock($lock_fh, LOCK_UN);
+                while (! flock($lock_fh, LOCK_UN)) {
+                    die "failed to unlock file:@{[$self->{lock_path}]}:$!"
+                        unless $! == EINTR;
+                    exit 0 if $self->{term_received};
+                }
             }
         };
     }
