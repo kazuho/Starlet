@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.26
+	- fix abrupt connection close when receiving SIGTERM #21 (by shogo82148)
+
 0.25
 	- support listing to unix socket wo. using Server::Starter
 	- suppress warning when receiving broken requests
