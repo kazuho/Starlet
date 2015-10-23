@@ -141,6 +141,7 @@ sub accept_loop {
 
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
         my ($conn, $peer, $listen) = $acceptor->();
+        local $self->{can_exit} = 0;
         $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
         defined($conn->blocking(0))
             or die "failed to set socket to nonblocking mode:$!";
@@ -190,6 +191,8 @@ sub accept_loop {
                 return;
             }
             last unless $keepalive;
+            $self->{can_exit} = 1
+                if $pipelined_buf eq '';
             # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
         }
         $conn->close;
@@ -256,7 +259,6 @@ sub handle_connection {
     my $pipelined_buf='';
     my $res = $bad_response;
     
-    local $self->{can_exit} = (defined $prebuf) ? 0 : 1;
     while (1) {
         my $rlen;
         if ( $rlen = length $prebuf ) {
