@@ -125,10 +125,14 @@ sub accept_loop {
     my($self, $app, $max_reqs_per_child) = @_;
     my $proc_req_count = 0;
 
+    $self->{can_exit} = 1;
     my $is_keepalive = 0;
     local $SIG{TERM} = sub {
+        exit 0 if $self->{can_exit};
         $self->{term_received}++;
-        exit 0 if $self->{term_received} > 1;
+        exit 0
+            if ($is_keepalive && $self->{can_exit}) || $self->{term_received} > 1;
+        # warn "server termination delayed while handling current HTTP request";
     };
 
     local $SIG{PIPE} = 'IGNORE';
@@ -203,9 +207,6 @@ sub _get_acceptor {
                 if (my ($conn, $peer) = $listen->{sock}->accept) {
                     return ($conn, $peer, $listen);
                 }
-                elsif ($! == EINTR) {
-                    exit 0 if $self->{term_received};
-                }
             }
         };
     }
@@ -227,21 +228,10 @@ sub _get_acceptor {
         return sub {
             while (1) {
                 while (! flock($lock_fh, LOCK_EX)) {
-                    if ($! == EINTR) {
-                        exit 0 if $self->{term_received};
-                        next;
-                    }
+                    next if $! == EINTR;
                     die "failed to lock file:@{[$self->{lock_path}]}:$!";
                 }
                 my $nfound = select(my $rout = $rin, undef, undef, undef);
-                if ($nfound == -1) { # trap err
-                    if ($! == EINTR) {
-                        flock($lock_fh, LOCK_UN);
-                        exit 0 if $self->{term_received};
-                        next;
-                    }
-                    die "failed to select file:@{[$self->{lock_path}]}:$!";
-                }
                 for (my $i = 0; $nfound > 0; ++$i) {
                     my $fd = $fds[$i];
                     next unless vec($rout, $fd, 1);
@@ -251,15 +241,8 @@ sub _get_acceptor {
                         flock($lock_fh, LOCK_UN);
                         return ($conn, $peer, $listen);
                     }
-                    elsif ($! == EINTR) {
-                        exit 0 if $self->{term_received};
-                    }
                 }
-                while (! flock($lock_fh, LOCK_UN)) {
-                    die "failed to unlock file:@{[$self->{lock_path}]}:$!"
-                        unless $! == EINTR;
-                    exit 0 if $self->{term_received};
-                }
+                flock($lock_fh, LOCK_UN);
             }
         };
     }
@@ -273,6 +256,7 @@ sub handle_connection {
     my $pipelined_buf='';
     my $res = $bad_response;
     
+    local $self->{can_exit} = (defined $prebuf) ? 0 : 1;
     while (1) {
         my $rlen;
         if ( $rlen = length $prebuf ) {
@@ -285,6 +269,7 @@ sub handle_connection {
                 $is_keepalive ? $self->{keepalive_timeout} : $self->{timeout},
             ) or return;
         }
+        $self->{can_exit} = 0;
         my $reqlen = parse_http_request($buf, $env);
         if ($reqlen >= 0) {
             # handle request
