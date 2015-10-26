@@ -78,10 +78,7 @@ sub run {
         $pm->wait_all_children;
     } else {
         # run directly, mainly for debugging
-        local $SIG{TERM} = sub { exit 0; };
-        while (1) {
-            $self->accept_loop($app, $self->_calc_reqs_per_child());
-        }
+        $self->accept_loop($app, "inf" + 1);
     }
 }
 

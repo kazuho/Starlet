@@ -11,7 +11,7 @@ use HTTP::Status;
 use List::Util qw(max sum);
 use Plack::Util;
 use Plack::TempBuffer;
-use POSIX qw(EINTR EAGAIN EWOULDBLOCK);
+use POSIX qw(EINTR EAGAIN EWOULDBLOCK SIGTERM);
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use File::Temp qw(tempfile);
 use Fcntl qw(:flock);
@@ -121,22 +121,39 @@ sub setup_listener {
 }
 
 sub accept_loop {
-    # TODO handle $max_reqs_per_child
+    my ($self, @args) = @_;
+
+    # setup signal handlers
+    pipe($self->{term_rpipe}, $self->{term_wpipe})
+        or die "pipe(2) failed:$!";
+    $self->{term_received} = 0;
+    POSIX::sigaction(SIGTERM, POSIX::SigAction->new(sub {
+        $self->{term_received}++;
+        syswrite $self->{term_wpipe}, "1", 1;
+    })) or die "failed to register SIGTERM handler:$!";
+    local $SIG{PIPE} = 'IGNORE';
+
+    # doit
+    $self->_do_accept_loop(@args);
+
+    # reset unsafe signal handler and exit
+    POSIX::sigaction(SIGTERM, POSIX::SigAction->new('IGNORE'));
+    exit 0;
+}
+
+sub _do_accept_loop {
     my($self, $app, $max_reqs_per_child) = @_;
     my $proc_req_count = 0;
-
     my $is_keepalive = 0;
-    local $SIG{TERM} = sub {
-        $self->{term_received}++;
-        exit 0 if $self->{term_received} > 1;
-    };
-
-    local $SIG{PIPE} = 'IGNORE';
 
     my $acceptor = $self->_get_acceptor;
 
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
-        my ($conn, $peer, $listen) = $acceptor->();
+        my ($conn, $peer, $listen);
+        while (! $conn) {
+            return if $self->{term_received};
+            ($conn, $peer, $listen) = $acceptor->();
+        }
         $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
         defined($conn->blocking(0))
             or die "failed to set socket to nonblocking mode:$!";
@@ -186,6 +203,9 @@ sub accept_loop {
                 return;
             }
             last unless $keepalive;
+            if ($pipelined_buf eq '') {
+                return if $self->{term_received};
+            }
             # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
         }
         $conn->close;
@@ -196,17 +216,13 @@ sub _get_acceptor {
     my $self = shift;
     my @listens = grep {defined $_} @{$self->{listens}};
 
-    if (scalar(@listens) == 1) {
+    if (0 && scalar(@listens) == 1) {
         my $listen = $listens[0];
         return sub {
-            while (1) {
-                if (my ($conn, $peer) = $listen->{sock}->accept) {
-                    return ($conn, $peer, $listen);
-                }
-                elsif ($! == EINTR) {
-                    exit 0 if $self->{term_received};
-                }
+            if (my ($conn, $peer) = $listen->{sock}->accept) {
+                return ($conn, $peer, $listen);
             }
+            return +();
         };
     }
     else {
@@ -220,30 +236,20 @@ sub _get_acceptor {
             push @fds, $fd;
             vec($rin, $fd, 1) = 1;
         }
+        my $term_rpipe_fd = fileno $self->{term_rpipe};
+        vec($rin, $term_rpipe_fd, 1) = 1;
 
         open(my $lock_fh, '>', $self->{lock_path})
             or die "failed to open lock file:@{[$self->{lock_path}]}:$!";
 
         return sub {
-            while (1) {
-                while (! flock($lock_fh, LOCK_EX)) {
-                    if ($! == EINTR) {
-                        exit 0 if $self->{term_received};
-                        next;
-                    }
-                    die "failed to lock file:@{[$self->{lock_path}]}:$!";
-                }
-                my $nfound = select(my $rout = $rin, undef, undef, undef);
-                if ($nfound == -1) { # trap err
-                    if ($! == EINTR) {
-                        flock($lock_fh, LOCK_UN);
-                        exit 0 if $self->{term_received};
-                        next;
-                    }
-                    die "failed to select file:@{[$self->{lock_path}]}:$!";
-                }
-                for (my $i = 0; $nfound > 0; ++$i) {
-                    my $fd = $fds[$i];
+            while (! flock($lock_fh, LOCK_EX)) {
+                next if $! == EINTR;
+                die "failed to lock file:@{[$self->{lock_path}]}:$!";
+            }
+            my $nfound = select(my $rout = $rin, undef, undef, undef);
+            if ($nfound && !vec($rout, $term_rpipe_fd, 1)) {
+                for my $fd (@fds) {
                     next unless vec($rout, $fd, 1);
                     --$nfound;
                     my $listen = $self->{listens}[$fd];
@@ -251,16 +257,10 @@ sub _get_acceptor {
                         flock($lock_fh, LOCK_UN);
                         return ($conn, $peer, $listen);
                     }
-                    elsif ($! == EINTR) {
-                        exit 0 if $self->{term_received};
-                    }
-                }
-                while (! flock($lock_fh, LOCK_UN)) {
-                    die "failed to unlock file:@{[$self->{lock_path}]}:$!"
-                        unless $! == EINTR;
-                    exit 0 if $self->{term_received};
                 }
             }
+            flock($lock_fh, LOCK_UN);
+            return +();
         };
     }
 }
@@ -285,6 +285,7 @@ sub handle_connection {
                 $is_keepalive ? $self->{keepalive_timeout} : $self->{timeout},
             ) or return;
         }
+        $self->{can_exit} = 0;
         my $reqlen = parse_http_request($buf, $env);
         if ($reqlen >= 0) {
             # handle request
