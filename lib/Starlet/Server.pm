@@ -124,24 +124,21 @@ sub accept_loop {
     # TODO handle $max_reqs_per_child
     my($self, $app, $max_reqs_per_child) = @_;
     my $proc_req_count = 0;
-
-    $self->{can_exit} = 1;
     my $is_keepalive = 0;
-    local $SIG{TERM} = sub {
-        exit 0 if $self->{can_exit};
-        $self->{term_received}++;
-        exit 0
-            if ($is_keepalive && $self->{can_exit}) || $self->{term_received} > 1;
-        # warn "server termination delayed while handling current HTTP request";
-    };
 
+    local $SIG{TERM} = sub {
+        $self->{term_received} = 1;
+    };
     local $SIG{PIPE} = 'IGNORE';
 
     my $acceptor = $self->_get_acceptor;
 
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
+        # accept (or exit on SIGTERM)
+        exit 0 if $self->{term_received};
         my ($conn, $peer, $listen) = $acceptor->();
-        local $self->{can_exit} = 0;
+        next unless $conn;
+
         $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
         defined($conn->blocking(0))
             or die "failed to set socket to nonblocking mode:$!";
@@ -191,8 +188,9 @@ sub accept_loop {
                 return;
             }
             last unless $keepalive;
-            $self->{can_exit} = 1
-                if $pipelined_buf eq '';
+            if ($pipelined_buf eq '') {
+                exit 0 if $self->{term_received};
+            }
             # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
         }
         $conn->close;
@@ -206,11 +204,10 @@ sub _get_acceptor {
     if (scalar(@listens) == 1) {
         my $listen = $listens[0];
         return sub {
-            while (1) {
-                if (my ($conn, $peer) = $listen->{sock}->accept) {
-                    return ($conn, $peer, $listen);
-                }
+            if (my ($conn, $peer) = $listen->{sock}->accept) {
+                return ($conn, $peer, $listen);
             }
+            return +();
         };
     }
     else {
@@ -229,24 +226,24 @@ sub _get_acceptor {
             or die "failed to open lock file:@{[$self->{lock_path}]}:$!";
 
         return sub {
-            while (1) {
-                while (! flock($lock_fh, LOCK_EX)) {
-                    next if $! == EINTR;
-                    die "failed to lock file:@{[$self->{lock_path}]}:$!";
-                }
-                my $nfound = select(my $rout = $rin, undef, undef, undef);
-                for (my $i = 0; $nfound > 0; ++$i) {
-                    my $fd = $fds[$i];
-                    next unless vec($rout, $fd, 1);
-                    --$nfound;
-                    my $listen = $self->{listens}[$fd];
-                    if (my ($conn, $peer) = $listen->{sock}->accept) {
-                        flock($lock_fh, LOCK_UN);
-                        return ($conn, $peer, $listen);
-                    }
-                }
-                flock($lock_fh, LOCK_UN);
+            if (! flock($lock_fh, LOCK_EX)) {
+                die "failed to lock file:@{[$self->{lock_path}]}:$!"
+                    if $! != EINTR;
+                return +();
             }
+            my $nfound = select(my $rout = $rin, undef, undef, undef);
+            for (my $i = 0; $nfound > 0; ++$i) {
+                my $fd = $fds[$i];
+                next unless vec($rout, $fd, 1);
+                --$nfound;
+                my $listen = $self->{listens}[$fd];
+                if (my ($conn, $peer) = $listen->{sock}->accept) {
+                    flock($lock_fh, LOCK_UN);
+                    return ($conn, $peer, $listen);
+                }
+            }
+            flock($lock_fh, LOCK_UN);
+            return +();
         };
     }
 }
@@ -271,7 +268,6 @@ sub handle_connection {
                 $is_keepalive ? $self->{keepalive_timeout} : $self->{timeout},
             ) or return;
         }
-        $self->{can_exit} = 0;
         my $reqlen = parse_http_request($buf, $env);
         if ($reqlen >= 0) {
             # handle request
