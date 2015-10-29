@@ -188,9 +188,6 @@ sub accept_loop {
                 return;
             }
             last unless $keepalive;
-            if ($pipelined_buf eq '') {
-                exit 0 if $self->{term_received};
-            }
             # TODO add special cases for clients with broken keep-alive support, as well as disabling keep-alive for HTTP/1.0 proxies
         }
         $conn->close;
@@ -273,13 +270,14 @@ sub handle_connection {
             # handle request
             my $protocol = $env->{SERVER_PROTOCOL};
             if ($use_keepalive) {
-                if ( $protocol eq 'HTTP/1.1' ) {
+                if ($self->{term_received}) {
+                    $use_keepalive = undef;
+                } elsif ( $protocol eq 'HTTP/1.1' ) {
                     if (my $c = $env->{HTTP_CONNECTION}) {
                         $use_keepalive = undef 
                             if $c =~ /^\s*close\s*/i;
                     }
-                }
-                else {
+                } else {
                     if (my $c = $env->{HTTP_CONNECTION}) {
                         $use_keepalive = undef
                             unless $c =~ /^\s*keep-alive\s*/i;
@@ -376,9 +374,6 @@ sub handle_connection {
         });
     } else {
         die "Bad response $res";
-    }
-    if ($self->{term_received}) {
-        exit 0;
     }
     
     return ($use_keepalive, $pipelined_buf);
