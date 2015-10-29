@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.27_01
+	- always shutdown after SIGTERM, but only after notifying the client (via connection: close or equiv.) #23
+
 0.26
 	- fix abrupt connection close when receiving SIGTERM #21 (by shogo82148)
 
