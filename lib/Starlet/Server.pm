@@ -124,19 +124,21 @@ sub accept_loop {
     # TODO handle $max_reqs_per_child
     my($self, $app, $max_reqs_per_child) = @_;
     my $proc_req_count = 0;
-
     my $is_keepalive = 0;
-    local $SIG{TERM} = sub {
-        $self->{term_received}++;
-        exit 0 if $self->{term_received} > 1;
-    };
 
+    local $SIG{TERM} = sub {
+        $self->{term_received} = 1;
+    };
     local $SIG{PIPE} = 'IGNORE';
 
     my $acceptor = $self->_get_acceptor;
 
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
+        # accept (or exit on SIGTERM)
+        exit 0 if $self->{term_received};
         my ($conn, $peer, $listen) = $acceptor->();
+        next unless $conn;
+
         $self->{_is_deferred_accept} = $listen->{_using_defer_accept};
         defined($conn->blocking(0))
             or die "failed to set socket to nonblocking mode:$!";
@@ -199,14 +201,10 @@ sub _get_acceptor {
     if (scalar(@listens) == 1) {
         my $listen = $listens[0];
         return sub {
-            while (1) {
-                if (my ($conn, $peer) = $listen->{sock}->accept) {
-                    return ($conn, $peer, $listen);
-                }
-                elsif ($! == EINTR) {
-                    exit 0 if $self->{term_received};
-                }
+            if (my ($conn, $peer) = $listen->{sock}->accept) {
+                return ($conn, $peer, $listen);
             }
+            return +();
         };
     }
     else {
@@ -225,42 +223,24 @@ sub _get_acceptor {
             or die "failed to open lock file:@{[$self->{lock_path}]}:$!";
 
         return sub {
-            while (1) {
-                while (! flock($lock_fh, LOCK_EX)) {
-                    if ($! == EINTR) {
-                        exit 0 if $self->{term_received};
-                        next;
-                    }
-                    die "failed to lock file:@{[$self->{lock_path}]}:$!";
-                }
-                my $nfound = select(my $rout = $rin, undef, undef, undef);
-                if ($nfound == -1) { # trap err
-                    if ($! == EINTR) {
-                        flock($lock_fh, LOCK_UN);
-                        exit 0 if $self->{term_received};
-                        next;
-                    }
-                    die "failed to select file:@{[$self->{lock_path}]}:$!";
-                }
-                for (my $i = 0; $nfound > 0; ++$i) {
-                    my $fd = $fds[$i];
-                    next unless vec($rout, $fd, 1);
-                    --$nfound;
-                    my $listen = $self->{listens}[$fd];
-                    if (my ($conn, $peer) = $listen->{sock}->accept) {
-                        flock($lock_fh, LOCK_UN);
-                        return ($conn, $peer, $listen);
-                    }
-                    elsif ($! == EINTR) {
-                        exit 0 if $self->{term_received};
-                    }
-                }
-                while (! flock($lock_fh, LOCK_UN)) {
-                    die "failed to unlock file:@{[$self->{lock_path}]}:$!"
-                        unless $! == EINTR;
-                    exit 0 if $self->{term_received};
+            if (! flock($lock_fh, LOCK_EX)) {
+                die "failed to lock file:@{[$self->{lock_path}]}:$!"
+                    if $! != EINTR;
+                return +();
+            }
+            my $nfound = select(my $rout = $rin, undef, undef, undef);
+            for (my $i = 0; $nfound > 0; ++$i) {
+                my $fd = $fds[$i];
+                next unless vec($rout, $fd, 1);
+                --$nfound;
+                my $listen = $self->{listens}[$fd];
+                if (my ($conn, $peer) = $listen->{sock}->accept) {
+                    flock($lock_fh, LOCK_UN);
+                    return ($conn, $peer, $listen);
                 }
             }
+            flock($lock_fh, LOCK_UN);
+            return +();
         };
     }
 }
@@ -290,13 +270,14 @@ sub handle_connection {
             # handle request
             my $protocol = $env->{SERVER_PROTOCOL};
             if ($use_keepalive) {
-                if ( $protocol eq 'HTTP/1.1' ) {
+                if ($self->{term_received}) {
+                    $use_keepalive = undef;
+                } elsif ( $protocol eq 'HTTP/1.1' ) {
                     if (my $c = $env->{HTTP_CONNECTION}) {
                         $use_keepalive = undef 
                             if $c =~ /^\s*close\s*/i;
                     }
-                }
-                else {
+                } else {
                     if (my $c = $env->{HTTP_CONNECTION}) {
                         $use_keepalive = undef
                             unless $c =~ /^\s*keep-alive\s*/i;
@@ -393,9 +374,6 @@ sub handle_connection {
         });
     } else {
         die "Bad response $res";
-    }
-    if ($self->{term_received}) {
-        exit 0;
     }
     
     return ($use_keepalive, $pipelined_buf);
