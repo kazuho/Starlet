@@ -1,6 +1,6 @@
 Revision history for Perl extension Starlet
 
-0.27_01
+0.28
 	- always shutdown after SIGTERM, but only after notifying the client (via connection: close or equiv.) #23
 
 0.26
