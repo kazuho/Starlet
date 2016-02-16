@@ -75,7 +75,11 @@ sub run {
             $self->accept_loop($app, $self->_calc_reqs_per_child());
             $pm->finish;
         }
-        while ($pm->wait_all_children(1)) {
+        my $timeout = 1;
+        if ($self->{spawn_interval}) {
+            $timeout = $self->{spawn_interval} * $self->{max_workers}
+        }
+        while ($pm->wait_all_children($timeout)) {
             $pm->signal_all_children('TERM');
         }
     } else {
