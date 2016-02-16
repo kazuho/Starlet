@@ -3,7 +3,6 @@ use warnings;
 
 use File::Basename ();
 use List::Util qw(first);
-use LWP::UserAgent ();
 use Test::TCP ();
 use File::Temp qw(tmpnam);
 
