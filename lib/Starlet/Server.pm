@@ -172,6 +172,9 @@ sub accept_loop {
                 'psgix.input.buffered' => Plack::Util::TRUE,
                 'psgix.io'          => $conn,
                 'psgix.harakiri'    => 1,
+                'psgix.informational' => sub {
+                    $self->_informational($conn, @_);
+                },
             };
 
             my $may_keepalive = $req_count < $self->{max_keepalive_reqs};
@@ -377,6 +380,20 @@ sub handle_connection {
     }
     
     return ($use_keepalive, $pipelined_buf);
+}
+
+sub _informational {
+    my ($self, $conn, $status_code, $headers) = @_;
+
+    my @lines = "HTTP/1.1 $status_code @{[ HTTP::Status::status_message($status_code) ]}\015\012";
+    for (my $i = 0; $i < @$headers; $i += 2) {
+        my $k = $headers->[$i];
+        my $v = $headers->[$i + 1];
+        push @lines, "$k: $v\015\012";
+    }
+    push @lines, "\015\012";
+
+    $self->write_all($conn, join("", @lines), $self->{timeout});
 }
 
 sub _handle_response {
