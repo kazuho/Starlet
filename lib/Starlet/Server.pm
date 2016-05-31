@@ -50,6 +50,7 @@ sub new {
                 ? $args{err_respawn_interval} : undef,
         ),
         is_multiprocess      => Plack::Util::FALSE,
+        child_finish         => $args{child_finish} || sub {},
         _using_defer_accept  => undef,
     }, $class;
 
@@ -135,7 +136,10 @@ sub accept_loop {
 
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
         # accept (or exit on SIGTERM)
-        exit 0 if $self->{term_received};
+        if ($self->{term_received}) {
+            $self->{child_finish}->($self, $app);
+            exit 0;
+        }
         my ($conn, $peer, $listen) = $acceptor->();
         next unless $conn;
 
@@ -180,7 +184,7 @@ sub accept_loop {
             }
             $may_keepalive = 1 if length $pipelined_buf;
             my $keepalive;
-            ($keepalive, $pipelined_buf) = $self->handle_connection($env, $conn, $app, 
+            ($keepalive, $pipelined_buf) = $self->handle_connection($env, $conn, $app,
                                                                     $may_keepalive, $req_count != 1, $pipelined_buf);
 
             if ($env->{'psgix.harakiri.commit'}) {
@@ -248,11 +252,11 @@ sub _get_acceptor {
 my $bad_response = [ 400, [ 'Content-Type' => 'text/plain', 'Connection' => 'close' ], [ 'Bad Request' ] ];
 sub handle_connection {
     my($self, $env, $conn, $app, $use_keepalive, $is_keepalive, $prebuf) = @_;
-    
+
     my $buf = '';
     my $pipelined_buf='';
     my $res = $bad_response;
-    
+
     while (1) {
         my $rlen;
         if ( $rlen = length $prebuf ) {
@@ -274,7 +278,7 @@ sub handle_connection {
                     $use_keepalive = undef;
                 } elsif ( $protocol eq 'HTTP/1.1' ) {
                     if (my $c = $env->{HTTP_CONNECTION}) {
-                        $use_keepalive = undef 
+                        $use_keepalive = undef
                             if $c =~ /^\s*close\s*/i;
                     }
                 } else {
@@ -332,7 +336,7 @@ sub handle_connection {
                         }
                         $buffer->print(substr $chunk_buffer, 0, $chunk_len, '');
                         $chunk_buffer =~ s/^\015\012//;
-                        $length += $chunk_len;                        
+                        $length += $chunk_len;
                     }
                 }
                 $env->{CONTENT_LENGTH} = $length;
@@ -375,7 +379,7 @@ sub handle_connection {
     } else {
         die "Bad response $res";
     }
-    
+
     return ($use_keepalive, $pipelined_buf);
 }
 
@@ -384,7 +388,7 @@ sub _handle_response {
     my $status_code = $res->[0];
     my $headers = $res->[1];
     my $body = $res->[2];
-    
+
     my @lines;
     my %send_headers;
     for (my $i = 0; $i < @$headers; $i += 2) {
@@ -436,7 +440,7 @@ sub _handle_response {
 
     unshift @lines, "HTTP/1.1 $status_code @{[ HTTP::Status::status_message($status_code) ]}\015\012";
     push @lines, "\015\012";
-    
+
     if (defined $body && ref $body eq 'ARRAY' && @$body == 1
             && length $body->[0] < 8192) {
         # combine response header and small request body

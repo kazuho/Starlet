@@ -9,7 +9,7 @@ use base qw(Starlet::Server);
 
 sub new {
     my ($klass, %args) = @_;
-    
+
     # setup before instantiation
     if (defined $ENV{SERVER_STARTER_PORT}) {
         $args{listens} = [];
@@ -40,12 +40,18 @@ sub new {
         $max_workers = delete $args{$_}
             if defined $args{$_};
     }
-    
+
+    my $hook_module = delete $args{hook_module};
+    if ($hook_module) {
+        my $child_finish_hook = delete $args{child_finish_hook};
+        $args{child_finish} = eval { $hook_module->can($child_finish_hook) };
+    }
+
     # instantiate and set the variables
     my $self = $klass->SUPER::new(%args);
     $self->{is_multiprocess} = 1;
     $self->{max_workers} = $max_workers;
-    
+
     $self;
 }
 
