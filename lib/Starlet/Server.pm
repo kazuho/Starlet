@@ -50,7 +50,7 @@ sub new {
                 ? $args{err_respawn_interval} : undef,
         ),
         is_multiprocess      => Plack::Util::FALSE,
-        child_finish         => $args{child_finish} || sub {},
+        child_exit           => $args{child_exit} || sub {},
         _using_defer_accept  => undef,
     }, $class;
 
@@ -137,7 +137,7 @@ sub accept_loop {
     while (! defined $max_reqs_per_child || $proc_req_count < $max_reqs_per_child) {
         # accept (or exit on SIGTERM)
         if ($self->{term_received}) {
-            $self->{child_finish}->($self, $app);
+            $self->{child_exit}->($self, $app);
             exit 0;
         }
         my ($conn, $peer, $listen) = $acceptor->();

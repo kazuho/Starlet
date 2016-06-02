@@ -41,10 +41,9 @@ sub new {
             if defined $args{$_};
     }
 
-    my $hook_module = delete $args{hook_module};
-    if ($hook_module) {
-        my $child_finish_hook = delete $args{child_finish_hook};
-        $args{child_finish} = eval { $hook_module->can($child_finish_hook) };
+    if ($args{child_exit}) {
+        $args{child_exit} = eval $args{child_exit} unless ref($args{child_exit});
+        delete $args{child_exit} if ref($args{child_exit}) ne 'CODE';
     }
 
     # instantiate and set the variables

@@ -63,13 +63,9 @@ if set, randomizes the number of requests handled by a single worker process bet
 
 if set, worker processes will not be spawned more than once than every given seconds.  Also, when SIGHUP is being received, no more than one worker processes will be collected every given seconds.  This feature is useful for doing a "slow-restart".  See http://blog.kazuhooku.com/2011/04/web-serverstarter-parallelprefork.html for more information. (default: none)
 
-=head2 --hook-module=s
+=head2 --child-exit=s
 
-the module where the hook subroutine locates. Note that this option should be used along with C<--child-finish-hook>.
-
-=head2 --child-finish-hook=s
-
-the subroutine name of child-finish hook in the hook-module. This hook will be called right before a child process exits. Note that C<--hook-module> is required for this option.
+the subroutine code to be executed right before a child process exits. e.g. C<--child-exit='sub { POSIX::_exit(0) }'>. (default: none)
 
 =head1 NOTES
 
