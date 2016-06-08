@@ -9,7 +9,7 @@ use base qw(Starlet::Server);
 
 sub new {
     my ($klass, %args) = @_;
-    
+
     # setup before instantiation
     if (defined $ENV{SERVER_STARTER_PORT}) {
         $args{listens} = [];
@@ -40,12 +40,17 @@ sub new {
         $max_workers = delete $args{$_}
             if defined $args{$_};
     }
-    
+
+    if ($args{child_exit}) {
+        $args{child_exit} = eval $args{child_exit} unless ref($args{child_exit});
+        die "child_exit is defined but not a code block" if ref($args{child_exit}) ne 'CODE';
+    }
+
     # instantiate and set the variables
     my $self = $klass->SUPER::new(%args);
     $self->{is_multiprocess} = 1;
     $self->{max_workers} = $max_workers;
-    
+
     $self;
 }
 
