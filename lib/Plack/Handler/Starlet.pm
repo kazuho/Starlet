@@ -43,7 +43,7 @@ sub new {
 
     if ($args{child_exit}) {
         $args{child_exit} = eval $args{child_exit} unless ref($args{child_exit});
-        delete $args{child_exit} if ref($args{child_exit}) ne 'CODE';
+        die "child_exit is defined but not a code block" if ref($args{child_exit}) ne 'CODE';
     }
 
     # instantiate and set the variables
