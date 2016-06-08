@@ -1,5 +1,8 @@
 Revision history for Perl extension Starlet
 
+0.30
+	- add child_exit hook #26 (by azrle)
+
 0.29
 	- fix workers being killed too aggressively when spawn-interval is used #27 (by limitusus)
 

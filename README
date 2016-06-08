@@ -56,6 +56,10 @@ COMMAND LINE OPTIONS
     http://blog.kazuhooku.com/2011/04/web-serverstarter-parallelprefork.html
     for more information. (default: none)
 
+  --child-exit=s
+    the subroutine code to be executed right before a child process exits.
+    e.g. "--child-exit='sub { POSIX::_exit(0) }'". (default: none)
+
 NOTES
     Starlet is designed and implemented to be simple, secure and fast,
     especially for running as an HTTP application server running behind a
