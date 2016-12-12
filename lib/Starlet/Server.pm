@@ -295,6 +295,17 @@ sub handle_connection {
             }
             $buf = substr $buf, $reqlen;
             my $chunked = do { no warnings; lc delete $env->{HTTP_TRANSFER_ENCODING} eq 'chunked' };
+
+            if ( $env->{HTTP_EXPECT} ) {
+                if ( lc $env->{HTTP_EXPECT} eq '100-continue' ) {
+                    $self->write_all($conn, "HTTP/1.1 100 Continue\015\012\015\012")
+                        or return;
+                } else {
+                    $res = [417,[ 'Content-Type' => 'text/plain', 'Connection' => 'close' ], [ 'Expectation Failed' ] ];
+                    last;
+                }
+            }
+
             if (my $cl = $env->{CONTENT_LENGTH}) {
                 my $buffer = Plack::TempBuffer->new($cl);
                 while ($cl > 0) {
@@ -350,16 +361,6 @@ sub handle_connection {
                     $use_keepalive = 1; #force keepalive
                 } # else clear buffer
                 $env->{'psgi.input'} = $null_io;
-            }
-
-            if ( $env->{HTTP_EXPECT} ) {
-                if ( $env->{HTTP_EXPECT} eq '100-continue' ) {
-                    $self->write_all($conn, "HTTP/1.1 100 Continue\015\012\015\012")
-                        or return;
-                } else {
-                    $res = [417,[ 'Content-Type' => 'text/plain', 'Connection' => 'close' ], [ 'Expectation Failed' ] ];
-                    last;
-                }
             }
 
             $res = Plack::Util::run_app $app, $env;
