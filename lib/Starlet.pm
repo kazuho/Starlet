@@ -67,6 +67,23 @@ if set, worker processes will not be spawned more than once than every given sec
 
 the subroutine code to be executed right before a child process exits. e.g. C<--child-exit='sub { POSIX::_exit(0) }'>. (default: none)
 
+=head1 Extensions to PSGI
+
+=head2 psgix.informational
+
+Starlets exposes a callback named C<psgix.informational> that can be used for sending an informational response.
+The callback accepts two arguments, the first argument being the status code and the second being an arrayref of the headers to be sent.
+Example below sends an 103 response before processing the request to build a final response.  
+
+  sub {
+      my $env = shift;
+      $env["psgix.informational"}->(103, [
+        'link' => '</style.css>; rel=preload'
+      ]);
+      my $resp = ... application logic ...
+      $resp;
+  }
+
 =head1 NOTES
 
 L<Starlet> is designed and implemented to be simple, secure and fast, especially for running as an HTTP application server running behind a reverse proxy.  It only depends on a minimal number of well-designed (and well-focused) modules.
