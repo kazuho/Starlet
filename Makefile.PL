@@ -3,6 +3,9 @@ use inc::Module::Install;
 all_from 'lib/Starlet.pm';
 readme_from 'lib/Starlet.pm';
 
+resources repository => 'https://github.com/kazuho/Starlet';
+resources bugtracker => 'https://github.com/kazuho/Starlet/issues';
+
 requires 'Plack' => 0.9920;
 requires 'Parallel::Prefork' => 0.17;
 
