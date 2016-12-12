@@ -2,7 +2,7 @@ package Starlet;
 
 use 5.008_001;
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 1;
 __END__

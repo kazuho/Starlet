@@ -1,5 +1,9 @@
 Revision history for Perl extension Starlet
 
+0.31
+	- send 100-continue immediately #25 (Gregory Oschwald)
+	- expose new callback for sending informational responses #29 (Kazuho Oku)
+
 0.30
 	- add child_exit hook #26 (by azrle)
 
