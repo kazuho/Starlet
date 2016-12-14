@@ -22,6 +22,7 @@ use Time::HiRes qw(time);
 use constant MAX_REQUEST_SIZE => 131072;
 use constant CHUNKSIZE        => 64 * 1024;
 use constant MSWin32          => $^O eq 'MSWin32';
+use constant DEBUG            => $ENV{STARLET_DEBUG} || 0;
 
 my $null_io = do { open my $io, "<", \""; $io };
 
@@ -369,6 +370,7 @@ sub handle_connection {
         if ($reqlen == -2) {
             # request is incomplete, do nothing
         } elsif ($reqlen == -1) {
+            warn "400 Bad request:\n$buf\n" if DEBUG;
             # error, close conn
             last;
         }
