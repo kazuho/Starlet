@@ -7,7 +7,7 @@ resources repository => 'https://github.com/kazuho/Starlet';
 resources bugtracker => 'https://github.com/kazuho/Starlet/issues';
 
 requires 'Plack' => 0.9920;
-requires 'Parallel::Prefork' => 0.17;
+requires 'Parallel::Prefork' => 0.18;
 
 requires 'Server::Starter' => 0.06;
 test_requires 'Test::More' => 0.88;
