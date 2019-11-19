@@ -296,6 +296,17 @@ sub handle_connection {
             $buf = substr $buf, $reqlen;
             my $chunked = do { no warnings; lc delete $env->{HTTP_TRANSFER_ENCODING} eq 'chunked' };
 
+            # If a message is received with both a Transfer-Encoding and a
+            # Content-Length header field, the Transfer-Encoding overrides the
+            # Content-Length.  Such a message might indicate an attempt to
+            # perform request smuggling (Section 9.5) or response splitting
+            # (Section 9.4) and ought to be handled as an error.  A sender MUST
+            # remove the received Content-Length field prior to forwarding such
+            # a message downstream.
+            if ($chunked && $env->{CONTENT_LENGTH}) {
+                last; # Return bad response.
+            }
+
             if ( $env->{HTTP_EXPECT} ) {
                 if ( lc $env->{HTTP_EXPECT} eq '100-continue' ) {
                     $self->write_all($conn, "HTTP/1.1 100 Continue\015\012\015\012")
@@ -307,6 +318,10 @@ sub handle_connection {
             }
 
             if (my $cl = $env->{CONTENT_LENGTH}) {
+                if ($cl !~ /^[0-9]+$/) { # content-length header must be digits.
+                    last; # Return bad response
+                }
+
                 my $buffer = Plack::TempBuffer->new($cl);
                 while ($cl > 0) {
                     my $chunk;
