@@ -20,7 +20,7 @@ my $app = sub {
         $clen -= length $buf;
         $body .= $buf;
     }
-    return [ 200, [ 'Content-Type', 'text/plain', 'X-Content-Length', $env->{CONTENT_LENGTH} ], [ $body ] ];
+    return [ 200, [ 'Content-Type', 'text/plain', 'Content-Length', $env->{CONTENT_LENGTH} ], [ $body ] ];
 };
 
 my $server = Test::TCP->new(
@@ -42,18 +42,18 @@ my $sock = IO::Socket::INET->new(
 );
 
 print {$sock} (
-    "GET / HTTP/1.1\015\012"
-    . "content-length: 3\015\012"
+    "POST / HTTP/1.1\015\012"
+    . "content-length: 12\015\012"
     . "Transfer-Encoding: chunked\015\012"
-    . "connection: close\015\012"
     . "\015\012"
-    . "8\015\012"
-    . "SMUGGLED\015\012"
+    . "5\015\012"
+    . "hello\015\012"
     . "0\015\012"
+    . "\015\012"
+    . "world"
 );
 
 my $res_str = do { local $/; <$sock> };
-my ($status_line, ) = split /\015\012/, $res_str;
-is $status_line, 'HTTP/1.1 400 Bad Request';
+like $res_str, qr{^HTTP/1\.1 200 .*\015\012\015\012hello$}s;
 
 done_testing;
