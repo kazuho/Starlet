@@ -304,7 +304,7 @@ sub handle_connection {
             # remove the received Content-Length field prior to forwarding such
             # a message downstream.
             if ($chunked && $env->{CONTENT_LENGTH}) {
-                last; # Return bad response.
+                delete $env->{CONTENT_LENGTH};
             }
 
             if ( $env->{HTTP_EXPECT} ) {
