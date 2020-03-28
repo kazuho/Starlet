@@ -1,0 +1,90 @@
+{
+   "abstract" : "a simple, high-performance PSGI/Plack HTTP server",
+   "author" : [
+      "Kazuho Oku"
+   ],
+   "dynamic_config" : 0,
+   "generated_by" : "Minilla/v3.1.9, CPAN::Meta::Converter version 2.150010",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : 2
+   },
+   "name" : "Starlet",
+   "no_index" : {
+      "directory" : [
+         "t",
+         "xt",
+         "inc",
+         "share",
+         "eg",
+         "examples",
+         "author",
+         "builder"
+      ]
+   },
+   "prereqs" : {
+      "configure" : {
+         "requires" : {
+            "Module::Build::Tiny" : "0.035"
+         }
+      },
+      "develop" : {
+         "requires" : {
+            "Test::CPAN::Meta" : "0",
+            "Test::MinimumVersion::Fast" : "0.04",
+            "Test::PAUSE::Permissions" : "0.07",
+            "Test::Pod" : "1.41",
+            "Test::Spellunker" : "v0.2.7"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Parallel::Prefork" : "0.18",
+            "Plack" : "0.992",
+            "Server::Starter" : "0.06",
+            "perl" : "5.008001"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "LWP::UserAgent" : "5.8",
+            "Test::More" : "0.88",
+            "Test::TCP" : "2.1"
+         }
+      }
+   },
+   "release_status" : "unstable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/kazuho/Starlet/issues"
+      },
+      "homepage" : "https://github.com/kazuho/Starlet",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/kazuho/Starlet.git",
+         "web" : "https://github.com/kazuho/Starlet"
+      }
+   },
+   "version" : "0.31",
+   "x_authority" : "cpan:KAZUHO",
+   "x_contributors" : [
+      "Aristotle Pagaltzis <pagaltzis@gmx.de>",
+      "Danijel Tasov <dt@korn.shell.la>",
+      "FUJIWARA Shunichiro <fujiwara.shunichiro@gmail.com>",
+      "Gregory Oschwald <goschwald@maxmind.com>",
+      "Ichinose Shogo <shogo82148@gmail.com>",
+      "Kazuho Oku <kazuhooku@gmail.com>",
+      "Masahiro Honma <hiratara@cpan.org>",
+      "Masahiro Nagano <kazeburo@gmail.com>",
+      "Matthew D. Fuller <fullermd@over-yonder.net>",
+      "Tatsuhiko Miyagawa <miyagawa@bulknews.net>",
+      "Tokuhiro Matsuno <tokuhirom@gmail.com>",
+      "kazuho <kazuho@kazpro.(none)>",
+      "limitusus <limit.usus@gmail.com>"
+   ],
+   "x_serialization_backend" : "JSON::PP version 4.04",
+   "x_static_install" : 1
+}
