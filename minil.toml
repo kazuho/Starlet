@@ -1,0 +1,4 @@
+name = "Starlet"
+authority = "cpan:KAZUHO"
+module_maker = "ModuleBuildTiny"
+static_install = "auto"
