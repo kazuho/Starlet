@@ -1,5 +1,10 @@
 Revision history for Perl extension Starlet
 
+0.32
+	- [security fix][CVE-2026-40561] prevent HTTP smuggling #34 #35 (Tokuhiro Matsuno)
+	- improve META #32 (Aristotle Pagaltzis)
+	- depend on Parallel::Prefork 0.18 #33 (FUJIWARA Shunichiro)
+
 0.31
 	- send 100-continue immediately #25 (Gregory Oschwald)
 	- expose new callback for sending informational responses #29 (Kazuho Oku)
