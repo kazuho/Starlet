@@ -354,7 +354,8 @@ sub handle_connection {
                     }
 
                     $chunk_buffer .= $chunk;
-                    while ( $chunk_buffer =~ s/^(([0-9a-fA-F]+).*\015\012)// ) {
+                    # atomic hex run: a size line that cannot match fails in linear time
+                    while ( $chunk_buffer =~ s/^((?>([0-9a-fA-F]+))[^\012]*\015\012)// ) {
                         my $trailer   = $1;
                         my $chunk_len = hex $2;
                         if ($chunk_len == 0) {
