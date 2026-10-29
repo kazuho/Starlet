@@ -330,7 +330,7 @@ sub handle_connection {
                         $buf = '';
                     } else {
                         $self->read_timeout(
-                            $conn, \$chunk, $cl, 0, $self->{timeout})
+                            $conn, \$chunk, $cl < CHUNKSIZE ? $cl : CHUNKSIZE, 0, $self->{timeout})
                             or return;
                     }
                     $buffer->print($chunk);
