@@ -257,6 +257,7 @@ sub handle_connection {
     my($self, $env, $conn, $app, $use_keepalive, $is_keepalive, $prebuf) = @_;
     
     my $buf = '';
+    my $method;
     my $pipelined_buf='';
     my $res = $bad_response;
     
@@ -275,6 +276,7 @@ sub handle_connection {
         my $reqlen = parse_http_request($buf, $env);
         if ($reqlen >= 0) {
             # handle request
+            $method = $env->{REQUEST_METHOD};
             my $protocol = $env->{SERVER_PROTOCOL};
             if ($use_keepalive) {
                 if ($self->{term_received}) {
@@ -391,10 +393,10 @@ sub handle_connection {
     }
 
     if (ref $res eq 'ARRAY') {
-        $self->_handle_response($env->{SERVER_PROTOCOL}, $res, $conn, \$use_keepalive);
+        $self->_handle_response($env->{SERVER_PROTOCOL}, $res, $conn, \$use_keepalive, $method);
     } elsif (ref $res eq 'CODE') {
         $res->(sub {
-            $self->_handle_response($env->{SERVER_PROTOCOL}, $_[0], $conn, \$use_keepalive);
+            $self->_handle_response($env->{SERVER_PROTOCOL}, $_[0], $conn, \$use_keepalive, $method);
         });
     } else {
         die "Bad response $res";
@@ -418,10 +420,12 @@ sub _informational {
 }
 
 sub _handle_response {
-    my($self, $protocol, $res, $conn, $use_keepalive_r) = @_;
+    my($self, $protocol, $res, $conn, $use_keepalive_r, $method) = @_;
     my $status_code = $res->[0];
     my $headers = $res->[1];
     my $body = $res->[2];
+    my $no_body = (defined $method && $method eq 'HEAD')
+        || $status_code == 204 || $status_code == 304;
     
     my @lines;
     my %send_headers;
@@ -450,7 +454,7 @@ sub _handle_response {
         if (defined $send_headers{'content-length'}
                 || defined $send_headers{'transfer-encoding'}) {
             # ok
-        } elsif (!Plack::Util::status_with_no_entity_body($status_code)) {
+        } elsif (!$no_body && !Plack::Util::status_with_no_entity_body($status_code)) {
             push @lines, "Transfer-Encoding: chunked\015\012";
             $use_chunked = 1;
         }
@@ -475,6 +479,13 @@ sub _handle_response {
     unshift @lines, "HTTP/1.1 $status_code @{[ HTTP::Status::status_message($status_code) ]}\015\012";
     push @lines, "\015\012";
     
+    if ($no_body) {
+        $self->write_all($conn, join('', @lines), $self->{timeout});
+        return Plack::Util::inline_object write => sub {}, close => sub {}
+            unless defined $body;
+        $body->close if ref $body ne 'ARRAY';
+        return;
+    }
     if (defined $body && ref $body eq 'ARRAY' && @$body == 1
             && length $body->[0] < 8192) {
         # combine response header and small request body
