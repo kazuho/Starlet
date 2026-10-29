@@ -21,6 +21,7 @@ use Time::HiRes qw(time);
 
 use constant MAX_REQUEST_SIZE => 131072;
 use constant CHUNKSIZE        => 64 * 1024;
+use constant MAX_CHUNK_LINE   => 4096;
 use constant MSWin32          => $^O eq 'MSWin32';
 
 my $null_io = do { open my $io, "<", \""; $io };
@@ -261,7 +262,7 @@ sub handle_connection {
     my $pipelined_buf='';
     my $res = $bad_response;
     
-    while (1) {
+    REQUEST: while (1) {
         my $rlen;
         if ( $rlen = length $prebuf ) {
             $buf = $prebuf;
@@ -344,6 +345,7 @@ sub handle_connection {
                 my $buffer = Plack::TempBuffer->new;
                 my $chunk_buffer = '';
                 my $length;
+                my $chunk_left = 0; # bytes of the current chunk still to come, CRLF included
                 DECHUNK: while(1) {
                     my $chunk;
                     if ( length $buf ) {
@@ -356,20 +358,30 @@ sub handle_connection {
                     }
 
                     $chunk_buffer .= $chunk;
-                    # atomic hex run: a size line that cannot match fails in linear time
-                    while ( $chunk_buffer =~ s/^((?>([0-9a-fA-F]+))[^\012]*\015\012)// ) {
-                        my $trailer   = $1;
-                        my $chunk_len = hex $2;
-                        if ($chunk_len == 0) {
-                            last DECHUNK;
-                        } elsif (length $chunk_buffer < $chunk_len + 2) {
-                            $chunk_buffer = $trailer . $chunk_buffer;
-                            last;
+                    while (1) {
+                        if ($chunk_left > 2) {
+                            my $n = $chunk_left - 2;
+                            $n = length $chunk_buffer if length $chunk_buffer < $n;
+                            last unless $n;
+                            $buffer->print(substr $chunk_buffer, 0, $n, '');
+                            $length += $n;
+                            $chunk_left -= $n;
+                            next;
                         }
-                        $buffer->print(substr $chunk_buffer, 0, $chunk_len, '');
-                        $chunk_buffer =~ s/^\015\012//;
-                        $length += $chunk_len;                        
+                        if ($chunk_left) {
+                            last if length $chunk_buffer < 2;
+                            $chunk_buffer =~ s/^\015\012//;
+                            $chunk_left = 0;
+                        }
+                        # atomic hex run: a size line that cannot match fails in linear time
+                        $chunk_buffer =~ s/^((?>([0-9a-fA-F]+))[^\012]*\015\012)//
+                            or last;
+                        last REQUEST if length $1 > MAX_CHUNK_LINE;
+                        my $chunk_len = hex $2;
+                        last DECHUNK if $chunk_len == 0;
+                        $chunk_left = $chunk_len + 2;
                     }
+                    last REQUEST if !$chunk_left && length $chunk_buffer > MAX_CHUNK_LINE;
                 }
                 $env->{CONTENT_LENGTH} = $length;
                 $env->{'psgi.input'} = $buffer->rewind;
