@@ -1,5 +1,11 @@
 Revision history for Perl extension Starlet
 
+0.33
+	- [security fix] prevent excessive CPU use when parsing malformed chunk-size lines (Robert Rothenberg)
+	- [security fix] bound read allocations for large Content-Length values (Robert Rothenberg)
+	- suppress response bodies for HEAD requests and 204/304 responses (Robert Rothenberg)
+	- [security fix] stream chunk data to the body buffer and limit chunk-size lines to 4096 bytes (Robert Rothenberg)
+
 0.32
 	- [security fix][CVE-2026-40561] prevent HTTP smuggling #34 #35 (Tokuhiro Matsuno)
 	- improve META #32 (Aristotle Pagaltzis)
